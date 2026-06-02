@@ -154,6 +154,65 @@ class _FileExplorerWidgetState extends State<FileExplorerWidget> {
     );
   }
 
+  void _showRenameDialog(SftpName item, String currentPath) {
+    final textController = TextEditingController(text: item.filename);
+    final formKey = GlobalKey<FormState>();
+
+    showDialog(
+      context: context,
+      builder: (dialContext) => AlertDialog(
+        title: Text('Renombrar', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+        content: Form(
+          key: formKey,
+          child: TextFormField(
+            controller: textController,
+            autofocus: true,
+            decoration: const InputDecoration(labelText: 'Nuevo nombre'),
+            validator: (value) {
+              if (value == null || value.trim().isEmpty) return 'El nombre no puede estar vacío';
+              if (value.contains('/')) return 'Nombre inválido';
+              if (value.trim() == item.filename) return 'El nombre es igual al actual';
+              return null;
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialContext),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (formKey.currentState?.validate() ?? false) {
+                final newName = textController.text.trim();
+                final oldPath = currentPath == '/' ? '/${item.filename}' : '$currentPath/${item.filename}';
+                final newPath = currentPath == '/' ? '/$newName' : '$currentPath/$newName';
+
+                Navigator.pop(dialContext);
+                setState(() => _isLoading = true);
+                try {
+                  await _sshService.rename(oldPath, newPath).timeout(const Duration(seconds: 5));
+                  _loadDirectoryContents(currentPath);
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Error al renombrar: $e'),
+                        backgroundColor: const Color(0xFFFF5252),
+                      ),
+                    );
+                    setState(() => _isLoading = false);
+                  }
+                }
+              }
+            },
+            child: const Text('Renombrar'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showDeleteDialog(SftpName item, String currentPath) {
     final fullPath = currentPath == '/' ? '/${item.filename}' : '$currentPath/${item.filename}';
     final isDir = item.attr.isDirectory;
@@ -226,7 +285,7 @@ class _FileExplorerWidgetState extends State<FileExplorerWidget> {
             children: [
               // Sidebar Header
               Container(
-                padding: const EdgeInsets.fromLTRB(16, 16, 8, 16),
+                padding: const EdgeInsets.fromLTRB(16, 4, 8, 4),
                 decoration: const BoxDecoration(
                   border: Border(
                     bottom: BorderSide(color: AppTheme.border, width: 1.0),
@@ -378,6 +437,16 @@ class _FileExplorerWidgetState extends State<FileExplorerWidget> {
                                               constraints: const BoxConstraints(),
                                               itemBuilder: (context) => [
                                                 const PopupMenuItem(
+                                                  value: 'rename',
+                                                  child: Row(
+                                                    children: [
+                                                      Icon(Icons.drive_file_rename_outline, size: 16, color: AppTheme.accentBlue),
+                                                      SizedBox(width: 8),
+                                                      Text('Renombrar'),
+                                                    ],
+                                                  ),
+                                                ),
+                                                const PopupMenuItem(
                                                   value: 'delete',
                                                   child: Row(
                                                     children: [
@@ -389,7 +458,9 @@ class _FileExplorerWidgetState extends State<FileExplorerWidget> {
                                                 ),
                                               ],
                                               onSelected: (value) {
-                                                if (value == 'delete') {
+                                                if (value == 'rename') {
+                                                  _showRenameDialog(item, currentDir);
+                                                } else if (value == 'delete') {
                                                   _showDeleteDialog(item, currentDir);
                                                 }
                                               },
