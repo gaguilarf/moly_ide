@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -7,6 +8,8 @@ import 'package:xterm/xterm.dart';
 import 'package:dartssh2/dartssh2.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:open_file/open_file.dart';
 
 import 'package:moly_ide/core/di/injection.dart';
 import 'package:moly_ide/core/ssh/ssh_service.dart';
@@ -34,6 +37,16 @@ class _TerminalWidgetState extends State<TerminalWidget> {
   String? _detectedUrl;
   String? _lastPromptedUrl;
   String _stdoutRollingBuffer = '';
+
+  // Flutter APK build & download state
+  bool _isFlutterBuilding = false;
+  bool _apkBuildSuccess = false;
+  bool _apkDownloadDone = false;
+  bool _isDownloadingApk = false;
+  double _downloadProgress = 0.0;
+  String _apkRemotePath = '';
+  String _buildProjectDir = '';
+  String _lastKnownDir = '';
 
   @override
   void initState() {
@@ -66,6 +79,11 @@ class _TerminalWidgetState extends State<TerminalWidget> {
       _detectedUrl = null;
       _lastPromptedUrl = null;
       _stdoutRollingBuffer = '';
+      _isFlutterBuilding = false;
+      _apkBuildSuccess = false;
+      _apkDownloadDone = false;
+      _isDownloadingApk = false;
+      _downloadProgress = 0.0;
     });
 
     _terminal.write('\r\n\x1b[1;35m[Moly IDE] Conectando sesión terminal interactiva...\x1b[0m\r\n');
@@ -246,6 +264,9 @@ class _TerminalWidgetState extends State<TerminalWidget> {
   Widget build(BuildContext context) {
     return BlocBuilder<IDECubit, IDEState>(
       builder: (context, state) {
+        // Keep track of the IDE directory so we can resolve APK paths
+        _lastKnownDir = state.currentDirectory;
+
         const isExpanded = true;
         final double width = MediaQuery.of(context).size.width;
         final isMobile = width < 500;
@@ -328,6 +349,11 @@ class _TerminalWidgetState extends State<TerminalWidget> {
                               ),
                             ),
                             
+                            const SizedBox(width: 6),
+
+                            // Build APK chip
+                            _buildApkChip(state.currentDirectory),
+
                             const SizedBox(width: 6),
 
                             // Shortcut 2: Copiar (Copy) selected text
@@ -429,12 +455,19 @@ class _TerminalWidgetState extends State<TerminalWidget> {
                           ),
                         ),
                       ),
-                      if (_detectedUrl != null)
+                      if (_detectedUrl != null && !_apkBuildSuccess)
                         Positioned(
                           left: 12,
                           right: 12,
                           bottom: 12,
                           child: _buildDetectedUrlCard(),
+                        ),
+                      if (_apkBuildSuccess)
+                        Positioned(
+                          left: 12,
+                          right: 12,
+                          bottom: 12,
+                          child: _buildApkCard(),
                         ),
                     ],
                   ),
@@ -572,17 +605,33 @@ class _TerminalWidgetState extends State<TerminalWidget> {
     );
   }
 
-  // Process terminal stdout chunks in a sliding rolling buffer to detect URLs
+  // Process terminal stdout chunks in a sliding rolling buffer to detect URLs and build events
   void _handleIncomingStdout(String data) {
     // Strip ANSI escape sequences (e.g., color formatting \x1B[39m, cursor movement \x1B[2G)
     // to prevent URL parameters or paths from being broken up.
     final cleanData = data.replaceAll(RegExp(r'\x1B\[[0-9;]*[a-zA-Z]'), '');
-    
+
     _stdoutRollingBuffer += cleanData;
     if (_stdoutRollingBuffer.length > 2000) {
       _stdoutRollingBuffer = _stdoutRollingBuffer.substring(_stdoutRollingBuffer.length - 2000);
     }
     _detectUrlsInRoll();
+    _detectFlutterBuildCompletion();
+  }
+
+  // Detect "✓  Built build/app/outputs/flutter-apk/app-release.apk" in the rolling buffer
+  void _detectFlutterBuildCompletion() {
+    if (_apkBuildSuccess) return;
+    final buf = _stdoutRollingBuffer;
+    if (buf.contains('app-release.apk') && buf.contains('Built ')) {
+      final projectDir = _buildProjectDir.isNotEmpty ? _buildProjectDir : _lastKnownDir;
+      const relPath = 'build/app/outputs/flutter-apk/app-release.apk';
+      setState(() {
+        _isFlutterBuilding = false;
+        _apkBuildSuccess = true;
+        _apkRemotePath = projectDir.isEmpty ? relPath : '$projectDir/$relPath';
+      });
+    }
   }
 
   // Scan rolling buffer for URLs using a robust character-by-character parser
@@ -684,6 +733,67 @@ class _TerminalWidgetState extends State<TerminalWidget> {
         _detectedUrl = rawUrl;
         _lastPromptedUrl = rawUrl;
       });
+    }
+  }
+
+  void _startFlutterBuild(String projectDir) {
+    setState(() {
+      _isFlutterBuilding = true;
+      _apkBuildSuccess = false;
+      _apkDownloadDone = false;
+      _buildProjectDir = projectDir;
+      _downloadProgress = 0.0;
+    });
+    _sendPresetCommand('flutter build apk --release');
+  }
+
+  void _closeApkCard() {
+    setState(() {
+      _apkBuildSuccess = false;
+      _apkDownloadDone = false;
+      _downloadProgress = 0.0;
+    });
+  }
+
+  Future<void> _downloadApk() async {
+    setState(() {
+      _isDownloadingApk = true;
+      _downloadProgress = 0.0;
+    });
+
+    try {
+      final bytes = await _sshService.downloadFileBinary(
+        _apkRemotePath,
+        onProgress: (received, total) {
+          if (total > 0 && mounted) {
+            setState(() => _downloadProgress = received / total);
+          }
+        },
+      );
+
+      final dir = await getExternalStorageDirectory() ??
+          await getApplicationDocumentsDirectory();
+      final filePath = '${dir.path}/app-release.apk';
+      await File(filePath).writeAsBytes(bytes);
+
+      if (mounted) {
+        setState(() {
+          _isDownloadingApk = false;
+          _downloadProgress = 1.0;
+          _apkDownloadDone = true;
+        });
+        await OpenFile.open(filePath, type: 'application/vnd.android.package-archive');
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isDownloadingApk = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al descargar APK: $e'),
+            backgroundColor: const Color(0xFFFF5252),
+          ),
+        );
+      }
     }
   }
 
@@ -865,6 +975,168 @@ class _TerminalWidgetState extends State<TerminalWidget> {
                   ),
                 ],
               ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildApkChip(String currentDir) {
+    return GestureDetector(
+      onTap: () {
+        if (!_isFlutterBuilding) _startFlutterBuild(currentDir);
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(
+          gradient: _isFlutterBuilding
+              ? null
+              : const LinearGradient(
+                  colors: [Color(0xFF1B5E20), Color(0xFF43A047)],
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                ),
+          color: _isFlutterBuilding ? AppTheme.surfaceLight : null,
+          borderRadius: AppTheme.borderRadius,
+          border: _isFlutterBuilding
+              ? Border.all(color: const Color(0xFF43A047), width: 0.8)
+              : null,
+          boxShadow: _isFlutterBuilding
+              ? null
+              : [BoxShadow(color: const Color(0xFF1B5E20).withOpacity(0.4), blurRadius: 4)],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (_isFlutterBuilding)
+              const SizedBox(
+                width: 10,
+                height: 10,
+                child: CircularProgressIndicator(strokeWidth: 1.5, color: Color(0xFF43A047)),
+              )
+            else
+              const Icon(Icons.android_rounded, size: 12, color: Colors.white),
+            const SizedBox(width: 4),
+            Text(
+              _isFlutterBuilding ? 'Compilando...' : 'Build APK',
+              style: GoogleFonts.outfit(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildApkCard() {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 8.0, sigmaY: 8.0),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+          decoration: BoxDecoration(
+            color: const Color(0xFF0F0C1B).withOpacity(0.85),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFF43A047).withOpacity(0.6), width: 1.5),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF1B5E20).withOpacity(0.2),
+                blurRadius: 10,
+                spreadRadius: 2,
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.android_rounded, size: 16, color: Color(0xFF43A047)),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _apkDownloadDone ? 'APK listo para instalar' : 'APK compilado exitosamente',
+                      style: GoogleFonts.outfit(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ),
+                  if (!_isDownloadingApk)
+                    GestureDetector(
+                      onTap: _closeApkCard,
+                      child: const Icon(Icons.close_rounded, size: 18, color: AppTheme.textSecondary),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                _apkRemotePath,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.firaCode(fontSize: 10, color: AppTheme.textSecondary),
+              ),
+              if (_isDownloadingApk || _apkDownloadDone) ...[
+                const SizedBox(height: 10),
+                LinearProgressIndicator(
+                  value: _downloadProgress,
+                  backgroundColor: AppTheme.surfaceLight,
+                  valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF43A047)),
+                  borderRadius: BorderRadius.circular(4),
+                  minHeight: 6,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _apkDownloadDone
+                      ? 'Descarga completa — abriendo instalador...'
+                      : 'Descargando... ${(_downloadProgress * 100).toStringAsFixed(0)}%',
+                  style: GoogleFonts.outfit(fontSize: 10, color: AppTheme.textSecondary),
+                  textAlign: TextAlign.end,
+                ),
+              ],
+              if (!_isDownloadingApk && !_apkDownloadDone) ...[
+                const SizedBox(height: 10),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: GestureDetector(
+                    onTap: _downloadApk,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF1B5E20), Color(0xFF43A047)],
+                        ),
+                        borderRadius: AppTheme.borderRadius,
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF1B5E20).withOpacity(0.3),
+                            blurRadius: 4,
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.download_rounded, size: 10, color: Colors.white),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Descargar e Instalar',
+                            style: GoogleFonts.outfit(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
         ),

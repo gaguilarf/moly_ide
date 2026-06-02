@@ -190,4 +190,27 @@ class SSHService {
     // SFTP absolute path resolver
     return await sftp.absolute('.');
   }
+
+  // SFTP Operations: Download binary file with optional progress callback
+  Future<Uint8List> downloadFileBinary(
+    String path, {
+    void Function(int received, int total)? onProgress,
+  }) async {
+    final attrs = await sftp.stat(path);
+    final total = attrs.size ?? 0;
+
+    final remoteFile = await sftp.open(path);
+    final byteStream = remoteFile.read();
+    final builder = BytesBuilder(copy: false);
+    int received = 0;
+
+    await for (final chunk in byteStream) {
+      builder.add(chunk);
+      received += chunk.length;
+      if (total > 0) onProgress?.call(received, total);
+    }
+
+    await remoteFile.close();
+    return builder.takeBytes();
+  }
 }
