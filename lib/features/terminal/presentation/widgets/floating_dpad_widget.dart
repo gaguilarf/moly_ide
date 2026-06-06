@@ -5,7 +5,9 @@ import 'package:moly_ide/core/ssh/ssh_service.dart';
 import 'package:moly_ide/core/theme/app_theme.dart';
 
 class FloatingDpadWidget extends StatefulWidget {
-  const FloatingDpadWidget({super.key});
+  final void Function(Offset delta)? onDragUpdate;
+
+  const FloatingDpadWidget({super.key, this.onDragUpdate});
 
   @override
   State<FloatingDpadWidget> createState() => _FloatingDpadWidgetState();
@@ -13,7 +15,7 @@ class FloatingDpadWidget extends StatefulWidget {
 
 class _FloatingDpadWidgetState extends State<FloatingDpadWidget> {
   final SSHService _sshService = locator<SSHService>();
-  bool _showDpad = true;
+  bool _showDpad = false;
 
   void _sendArrowKey(String direction) {
     final session = _sshService.activeTerminalSession;
@@ -149,16 +151,12 @@ class _FloatingDpadWidgetState extends State<FloatingDpadWidget> {
   }
 
   Widget _buildCollapsedButton() {
-    return InkWell(
-      onTap: () {
-        setState(() {
-          _showDpad = true;
-        });
-      },
-      borderRadius: BorderRadius.circular(8),
+    return GestureDetector(
+      onTap: () => setState(() => _showDpad = true),
+      onPanUpdate: (details) => widget.onDragUpdate?.call(details.delta),
       child: Container(
-        width: 32,
-        height: 32,
+        width: 36,
+        height: 36,
         decoration: BoxDecoration(
           color: const Color(0xFF0F0C1B).withOpacity(0.85),
           borderRadius: BorderRadius.circular(8),
@@ -175,7 +173,7 @@ class _FloatingDpadWidgetState extends State<FloatingDpadWidget> {
         ),
         child: const Icon(
           Icons.open_with_rounded,
-          size: 16,
+          size: 18,
           color: AppTheme.accentBlue,
         ),
       ),

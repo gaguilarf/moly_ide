@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart' hide ConnectionState;
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:moly_ide/core/theme/app_theme.dart';
+import 'package:moly_ide/core/update/update_dialog.dart';
+import 'package:moly_ide/core/update/update_service.dart';
 import 'package:moly_ide/features/connection/presentation/cubit/connection_cubit.dart';
 import 'package:moly_ide/features/connection/presentation/cubit/connection_state.dart';
 import 'package:moly_ide/features/ide_dashboard/presentation/pages/ide_dashboard_page.dart';
@@ -15,7 +18,8 @@ class ConnectionPage extends StatefulWidget {
 
 class _ConnectionPageState extends State<ConnectionPage> {
   final _formKey = GlobalKey<FormState>();
-  
+  final _updateService = UpdateService();
+
   late final TextEditingController _hostController;
   late final TextEditingController _portController;
   late final TextEditingController _usernameController;
@@ -23,6 +27,7 @@ class _ConnectionPageState extends State<ConnectionPage> {
 
   bool _isPasswordVisible = false;
   bool _showForm = false;
+  String _appVersion = '';
 
   @override
   void initState() {
@@ -31,6 +36,36 @@ class _ConnectionPageState extends State<ConnectionPage> {
     _portController = TextEditingController(text: '22');
     _usernameController = TextEditingController();
     _passwordController = TextEditingController();
+    _loadAppVersion();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkForUpdates());
+  }
+
+  Future<void> _loadAppVersion() async {
+    final info = await PackageInfo.fromPlatform();
+    if (mounted) {
+      setState(() {
+        _appVersion = '${info.version}+${info.buildNumber}';
+      });
+    }
+  }
+
+  Future<void> _checkForUpdates() async {
+    try {
+      final remote = await _updateService.checkRemoteVersion();
+      if (remote == null || !mounted) return;
+      final info = await PackageInfo.fromPlatform();
+      final currentBuild = int.tryParse(info.buildNumber) ?? 0;
+      if (remote.buildNumber > currentBuild && mounted) {
+        showDialog(
+          context: context,
+          builder: (_) => UpdateDialog(
+            info: remote,
+            currentBuild: currentBuild,
+            updateService: _updateService,
+          ),
+        );
+      }
+    } catch (_) {}
   }
 
   @override
@@ -605,6 +640,18 @@ class _ConnectionPageState extends State<ConnectionPage> {
                         );
                       },
                     ),
+                    const SizedBox(height: 32),
+                    Center(
+                      child: Text(
+                        'v$_appVersion',
+                        style: GoogleFonts.firaCode(
+                          fontSize: 11,
+                          color: AppTheme.textSecondary.withOpacity(0.5),
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
                   ],
                 ),
               ),

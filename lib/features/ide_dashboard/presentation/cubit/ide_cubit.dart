@@ -11,7 +11,6 @@ class IDECubit extends Cubit<IDEState> {
     initWorkspace();
   }
 
-  // Initialize workspace to home directory
   Future<void> initWorkspace() async {
     try {
       final homeDir = await _sshService.getHomeDirectory();
@@ -24,34 +23,27 @@ class IDECubit extends Cubit<IDEState> {
     }
   }
 
-  // Toggle File Explorer Panel
   void toggleExplorer() {
     emit(state.copyWith(isExplorerOpen: !state.isExplorerOpen));
   }
 
-  // Toggle Editor Panel
   void toggleEditor() {
     emit(state.copyWith(isEditorOpen: !state.isEditorOpen));
   }
 
-  // Set Editor Panel Open/Closed State
   void setEditorOpen(bool open) {
     emit(state.copyWith(isEditorOpen: open));
   }
 
-  // Toggle Terminal Panel
   void toggleTerminal() {
     emit(state.copyWith(isTerminalExpanded: !state.isTerminalExpanded));
   }
 
-  // Set Current Working Directory
   void changeDirectory(String newPath) {
     emit(state.copyWith(currentDirectory: newPath));
   }
 
-  // Open file from explorer
   Future<void> openFile(String path, String name) async {
-    // Check if file is already open
     final existingIndex = state.openTabs.indexWhere((tab) => tab.path == path);
     if (existingIndex != -1) {
       emit(state.copyWith(
@@ -73,12 +65,17 @@ class IDECubit extends Cubit<IDEState> {
       );
 
       final updatedTabs = List<IDEFileTab>.from(state.openTabs)..add(newTab);
+      final newIndex = updatedTabs.length - 1;
+
       emit(state.copyWith(
         openTabs: updatedTabs,
-        activeTabIndex: updatedTabs.length - 1,
+        activeTabIndex: newIndex,
         isEditorOpen: true,
         loadingFileMessage: () => null,
       ));
+
+      // Load git diff in background — non-blocking
+      _loadGitDiff(newIndex, path);
     } catch (e) {
       emit(state.copyWith(
         loadingFileMessage: () => null,
@@ -87,7 +84,70 @@ class IDECubit extends Cubit<IDEState> {
     }
   }
 
-  // Update editor draft in real time
+  Future<void> _loadGitDiff(int tabIndex, String filePath) async {
+    try {
+      final raw = await _sshService.executeCommand(
+        'git diff HEAD -- "$filePath" 2>/dev/null',
+      );
+      final diffLines = _parseUnifiedDiff(raw);
+
+      if (isClosed) return;
+      if (tabIndex >= state.openTabs.length) return;
+
+      final updatedTab = state.openTabs[tabIndex].copyWith(
+        gitDiffLines: () => diffLines,
+      );
+      final updatedTabs = List<IDEFileTab>.from(state.openTabs);
+      updatedTabs[tabIndex] = updatedTab;
+      emit(state.copyWith(openTabs: updatedTabs));
+    } catch (_) {
+      // Non-critical — silently ignore diff loading errors
+    }
+  }
+
+  List<GitDiffLine> _parseUnifiedDiff(String diffText) {
+    final lines = diffText.split('\n');
+    final result = <GitDiffLine>[];
+    int currentNewLine = 0;
+    bool inHunk = false;
+
+    for (final line in lines) {
+      if (line.startsWith('@@')) {
+        final match = RegExp(r'\+(\d+)').firstMatch(line);
+        if (match != null) {
+          currentNewLine = int.parse(match.group(1)!) - 1;
+        }
+        inHunk = true;
+        continue;
+      }
+
+      if (!inHunk || line.isEmpty) continue;
+
+      if (line.startsWith('+') && !line.startsWith('+++')) {
+        currentNewLine++;
+        result.add(GitDiffLine(
+          lineNumber: currentNewLine,
+          content: line.substring(1),
+          type: GitDiffLineType.added,
+        ));
+      } else if (line.startsWith('-') && !line.startsWith('---')) {
+        result.add(GitDiffLine(
+          content: line.substring(1),
+          type: GitDiffLineType.removed,
+        ));
+      } else if (line.startsWith(' ')) {
+        currentNewLine++;
+        result.add(GitDiffLine(
+          lineNumber: currentNewLine,
+          content: line.substring(1),
+          type: GitDiffLineType.context,
+        ));
+      }
+    }
+
+    return result;
+  }
+
   void updateFileDraft(String newContent) {
     final activeTab = state.activeTab;
     if (activeTab == null) return;
@@ -104,7 +164,6 @@ class IDECubit extends Cubit<IDEState> {
     emit(state.copyWith(openTabs: updatedTabs));
   }
 
-  // Save current active file
   Future<void> saveActiveFile() async {
     final activeTab = state.activeTab;
     if (activeTab == null || !activeTab.isModified) return;
@@ -113,13 +172,14 @@ class IDECubit extends Cubit<IDEState> {
 
     try {
       await _sshService.writeFile(activeTab.path, activeTab.currentContent);
-      
+
       final updatedTab = IDEFileTab(
         path: activeTab.path,
         name: activeTab.name,
         originalContent: activeTab.currentContent,
         currentContent: activeTab.currentContent,
         isModified: false,
+        gitDiffLines: const [], // reset diff after save (no changes vs HEAD now pending re-check)
       );
 
       final updatedTabs = List<IDEFileTab>.from(state.openTabs);
@@ -129,6 +189,9 @@ class IDECubit extends Cubit<IDEState> {
         openTabs: updatedTabs,
         savingFileMessage: () => null,
       ));
+
+      // Reload diff after save
+      _loadGitDiff(state.activeTabIndex, activeTab.path);
     } catch (e) {
       emit(state.copyWith(
         savingFileMessage: () => null,
@@ -137,19 +200,38 @@ class IDECubit extends Cubit<IDEState> {
     }
   }
 
-  // Close Tab
+  Future<void> reloadOpenFile(String path) async {
+    final tabIndex = state.openTabs.indexWhere((t) => t.path == path);
+    if (tabIndex == -1) return;
+    final tab = state.openTabs[tabIndex];
+    if (tab.isModified) return;
+    try {
+      final content = await _sshService.readFile(path);
+      final updatedTab = IDEFileTab(
+        path: tab.path,
+        name: tab.name,
+        originalContent: content,
+        currentContent: content,
+        isModified: false,
+      );
+      final updatedTabs = List<IDEFileTab>.from(state.openTabs);
+      updatedTabs[tabIndex] = updatedTab;
+      emit(state.copyWith(openTabs: updatedTabs));
+      _loadGitDiff(tabIndex, path);
+    } catch (_) {}
+  }
+
   void closeTab(int index) {
     if (index < 0 || index >= state.openTabs.length) return;
 
     final updatedTabs = List<IDEFileTab>.from(state.openTabs)..removeAt(index);
-    
+
     int newActiveIndex = state.activeTabIndex;
     if (updatedTabs.isEmpty) {
       newActiveIndex = -1;
     } else if (state.activeTabIndex >= updatedTabs.length) {
       newActiveIndex = updatedTabs.length - 1;
     } else if (state.activeTabIndex == index) {
-      // If we closed the active tab, select a neighboring tab
       newActiveIndex = index > 0 ? index - 1 : 0;
     } else if (state.activeTabIndex > index) {
       newActiveIndex--;
@@ -161,14 +243,12 @@ class IDECubit extends Cubit<IDEState> {
     ));
   }
 
-  // Select Tab
   void selectTab(int index) {
     if (index >= 0 && index < state.openTabs.length) {
       emit(state.copyWith(activeTabIndex: index));
     }
   }
 
-  // Clear active error
   void clearError() {
     emit(state.copyWith(errorMessage: () => null));
   }

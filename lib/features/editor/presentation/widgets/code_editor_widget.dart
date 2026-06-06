@@ -3,11 +3,10 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:code_text_field/code_text_field.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-// Highlight languages for syntax coloring
 import 'package:highlight/languages/dart.dart';
 import 'package:highlight/languages/javascript.dart';
 import 'package:highlight/languages/python.dart';
-import 'package:highlight/languages/xml.dart'; // Handles HTML/XML
+import 'package:highlight/languages/xml.dart';
 import 'package:highlight/languages/css.dart';
 import 'package:highlight/languages/json.dart';
 import 'package:highlight/languages/markdown.dart';
@@ -17,6 +16,7 @@ import 'package:flutter_highlight/themes/monokai-sublime.dart';
 import 'package:moly_ide/core/theme/app_theme.dart';
 import 'package:moly_ide/features/ide_dashboard/presentation/cubit/ide_cubit.dart';
 import 'package:moly_ide/features/ide_dashboard/presentation/cubit/ide_state.dart';
+import 'package:moly_ide/features/editor/presentation/widgets/git_diff_view.dart';
 
 class CodeEditorWidget extends StatefulWidget {
   const CodeEditorWidget({super.key});
@@ -28,6 +28,7 @@ class CodeEditorWidget extends StatefulWidget {
 class _CodeEditorWidgetState extends State<CodeEditorWidget> {
   CodeController? _codeController;
   String? _lastLoadedPath;
+  bool _showDiffView = false;
 
   @override
   void dispose() {
@@ -35,7 +36,6 @@ class _CodeEditorWidgetState extends State<CodeEditorWidget> {
     super.dispose();
   }
 
-  // Map file extension to highlight parser language
   dynamic _getLanguageForExtension(String filename) {
     final ext = filename.split('.').last.toLowerCase();
     switch (ext) {
@@ -71,7 +71,6 @@ class _CodeEditorWidgetState extends State<CodeEditorWidget> {
     );
     _lastLoadedPath = activeTab.path;
 
-    // Listen to changes in the editor and send them to the IDECubit
     _codeController!.addListener(() {
       final text = _codeController!.text;
       final cubit = context.read<IDECubit>();
@@ -91,54 +90,52 @@ class _CodeEditorWidgetState extends State<CodeEditorWidget> {
           return _buildEmptyState(context);
         }
 
-        // Re-initialize controller only if the active tab file has changed
         if (_codeController == null || _lastLoadedPath != activeTab.path) {
           _initializeController(activeTab);
+          _showDiffView = false; // reset diff view when tab changes
         } else {
-          // If the model content was updated from outside (e.g. saved), synchronize
           if (_codeController!.text != activeTab.currentContent) {
-            // Temporarily remove listener to avoid cycle
             _codeController!.text = activeTab.currentContent;
           }
         }
 
         return Container(
-          color: const Color(0xFF0F0E17), // Deep dark workspace color
+          color: const Color(0xFF0F0E17),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Tab Bar Container
               _buildTabBar(context, state),
-
-              // Code Field Editor
               Expanded(
-                child: Theme(
-                  data: Theme.of(context).copyWith(
-                    // Customizing scrollbars inside editor
-                    scrollbarTheme: ScrollbarThemeData(
-                      thumbColor: MaterialStateProperty.all(AppTheme.primaryPurple.withOpacity(0.3)),
-                      radius: AppTheme.radius,
-                    ),
-                  ),
-                  child: CodeTheme(
-                    data: CodeThemeData(styles: monokaiSublimeTheme),
-                    child: SingleChildScrollView(
-                      child: CodeField(
-                        controller: _codeController!,
-                        textStyle: AppTheme.codeStyle,
-                        lineNumberStyle: const LineNumberStyle(
-                          width: 46,
-                          textAlign: TextAlign.right,
-                          margin: 16.0,
-                          textStyle: TextStyle(
-                            color: Color(0xFF4C476D),
-                            fontSize: 12,
+                child: _showDiffView && activeTab.gitDiffLines != null
+                    ? GitDiffView(diffLines: activeTab.gitDiffLines!)
+                    : Theme(
+                        data: Theme.of(context).copyWith(
+                          scrollbarTheme: ScrollbarThemeData(
+                            thumbColor: WidgetStateProperty.all(
+                              AppTheme.primaryPurple.withOpacity(0.3),
+                            ),
+                            radius: AppTheme.radius,
+                          ),
+                        ),
+                        child: CodeTheme(
+                          data: CodeThemeData(styles: monokaiSublimeTheme),
+                          child: SingleChildScrollView(
+                            child: CodeField(
+                              controller: _codeController!,
+                              textStyle: AppTheme.codeStyle,
+                              lineNumberStyle: const LineNumberStyle(
+                                width: 46,
+                                textAlign: TextAlign.right,
+                                margin: 16.0,
+                                textStyle: TextStyle(
+                                  color: Color(0xFF4C476D),
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  ),
-                ),
               ),
             ],
           ),
@@ -148,6 +145,10 @@ class _CodeEditorWidgetState extends State<CodeEditorWidget> {
   }
 
   Widget _buildTabBar(BuildContext context, IDEState state) {
+    final activeTab = state.activeTab;
+    final hasDiff = activeTab?.hasGitDiff ?? false;
+    final diffLoaded = activeTab?.gitDiffLines != null;
+
     return Container(
       height: 40,
       decoration: const BoxDecoration(
@@ -183,7 +184,18 @@ class _CodeEditorWidgetState extends State<CodeEditorWidget> {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        // Modified indicator dot
+                        // Git diff indicator dot (orange if has diff)
+                        if (tab.hasGitDiff)
+                          Container(
+                            width: 6,
+                            height: 6,
+                            margin: const EdgeInsets.only(right: 6),
+                            decoration: const BoxDecoration(
+                              color: Color(0xFFE5C07B),
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                        // Modified indicator dot (blue)
                         if (tab.isModified)
                           Container(
                             width: 6,
@@ -203,19 +215,14 @@ class _CodeEditorWidgetState extends State<CodeEditorWidget> {
                           ),
                         ),
                         const SizedBox(width: 8),
-                        // Close tab button
                         GestureDetector(
                           onTap: () => context.read<IDECubit>().closeTab(index),
-                          child: Container(
-                            padding: const EdgeInsets.all(2),
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Icon(
-                              Icons.close,
-                              size: 12,
-                              color: isActive ? AppTheme.textSecondary : AppTheme.textSecondary.withOpacity(0.5),
-                            ),
+                          child: Icon(
+                            Icons.close,
+                            size: 12,
+                            color: isActive
+                                ? AppTheme.textSecondary
+                                : AppTheme.textSecondary.withOpacity(0.5),
                           ),
                         ),
                       ],
@@ -225,7 +232,59 @@ class _CodeEditorWidgetState extends State<CodeEditorWidget> {
               },
             ),
           ),
-          // Symmetrical close editor button
+
+          // Diff toggle button (only shown when diff is loaded)
+          if (diffLoaded)
+            Tooltip(
+              message: _showDiffView ? 'Ver Editor' : 'Ver Diff Git',
+              child: InkWell(
+                onTap: () => setState(() => _showDiffView = !_showDiffView),
+                borderRadius: BorderRadius.circular(4),
+                child: Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: _showDiffView
+                        ? const Color(0xFF1A3E2A)
+                        : (hasDiff ? const Color(0xFFE5C07B).withOpacity(0.15) : Colors.transparent),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(
+                      color: _showDiffView
+                          ? const Color(0xFF4CAF50).withOpacity(0.5)
+                          : (hasDiff
+                              ? const Color(0xFFE5C07B).withOpacity(0.4)
+                              : AppTheme.border),
+                      width: 1,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.difference_outlined,
+                        size: 13,
+                        color: _showDiffView
+                            ? const Color(0xFF4CAF50)
+                            : (hasDiff ? const Color(0xFFE5C07B) : AppTheme.textSecondary),
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'DIFF',
+                        style: GoogleFonts.firaCode(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: _showDiffView
+                              ? const Color(0xFF4CAF50)
+                              : (hasDiff ? const Color(0xFFE5C07B) : AppTheme.textSecondary),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
+          // Hide editor button
           IconButton(
             icon: const Icon(
               Icons.keyboard_double_arrow_right_rounded,
@@ -248,7 +307,7 @@ class _CodeEditorWidgetState extends State<CodeEditorWidget> {
         builder: (context, constraints) {
           final showIcon = constraints.maxHeight > 240;
           final spacing = showIcon ? 24.0 : 8.0;
-          
+
           return Center(
             child: SingleChildScrollView(
               physics: const BouncingScrollPhysics(),

@@ -9,8 +9,6 @@ import 'package:dartssh2/dartssh2.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:open_file/open_file.dart';
-
 import 'package:moly_ide/core/di/injection.dart';
 import 'package:moly_ide/core/ssh/ssh_service.dart';
 import 'package:moly_ide/core/theme/app_theme.dart';
@@ -25,6 +23,13 @@ class TerminalWidget extends StatefulWidget {
 }
 
 class _TerminalWidgetState extends State<TerminalWidget> {
+  static const _utilsChannel = MethodChannel('com.moly.moly_ide/utils');
+
+  // Pattern: Claude Code tool calls that edit files — Edit(...) or Write(...)
+  static final _claudeEditPattern = RegExp(
+    r'(?<![a-zA-Z])(?:Edit|Write)\(([^)]+)\)',
+  );
+
   final SSHService _sshService = locator<SSHService>();
   
   late final Terminal _terminal;
@@ -47,6 +52,14 @@ class _TerminalWidgetState extends State<TerminalWidget> {
   String _apkRemotePath = '';
   String _buildProjectDir = '';
   String _lastKnownDir = '';
+
+  // Terminal dimensions (updated dynamically from LayoutBuilder)
+  int _termCols = 80;
+  int _termRows = 24;
+
+  // Auto-open: reference to IDECubit (set in build) + debounce set
+  IDECubit? _ideCubit;
+  final Set<String> _autoOpenDebounce = {};
 
   @override
   void initState() {
@@ -89,12 +102,11 @@ class _TerminalWidgetState extends State<TerminalWidget> {
     _terminal.write('\r\n\x1b[1;35m[Moly IDE] Conectando sesión terminal interactiva...\x1b[0m\r\n');
 
     try {
-      // 80 columns, 24 rows
       final session = await _sshService.createShellSession(
-        terminalWidth: 80,
-        terminalHeight: 24,
+        terminalWidth: _termCols,
+        terminalHeight: _termRows,
       );
-      
+
       _session = session;
       _sshService.activeTerminalSession = session;
 
@@ -264,8 +276,9 @@ class _TerminalWidgetState extends State<TerminalWidget> {
   Widget build(BuildContext context) {
     return BlocBuilder<IDECubit, IDEState>(
       builder: (context, state) {
-        // Keep track of the IDE directory so we can resolve APK paths
+        // Keep track of the IDE directory and cubit reference for auto-open
         _lastKnownDir = state.currentDirectory;
+        _ideCubit = context.read<IDECubit>();
 
         const isExpanded = true;
         final double width = MediaQuery.of(context).size.width;
@@ -438,38 +451,51 @@ class _TerminalWidgetState extends State<TerminalWidget> {
                   ),
                 ),
 
-              // Terminal Shell Output (only visible if expanded)
+              // Terminal Shell Output
               if (isExpanded)
                 Expanded(
-                  child: Stack(
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.all(8.0),
-                        child: TerminalView(
-                          _terminal,
-                          controller: _terminalController,
-                          backgroundOpacity: 0,
-                          textStyle: TerminalStyle(
-                            fontSize: 12,
-                            fontFamily: GoogleFonts.firaCode().fontFamily ?? 'monospace',
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      // Fira Code 12px metrics: ~7.2px wide, ~16px tall per cell
+                      const double charW = 7.2;
+                      const double charH = 16.0;
+                      const double padding = 8.0;
+                      final cols = ((constraints.maxWidth - padding * 2) / charW).floor().clamp(40, 300);
+                      final rows = ((constraints.maxHeight - padding * 2) / charH).floor().clamp(10, 80);
+                      if (cols != _termCols || rows != _termRows) {
+                        WidgetsBinding.instance.addPostFrameCallback((_) => _resizeTerminal(cols, rows));
+                      }
+                      return Stack(
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.all(padding),
+                            child: TerminalView(
+                              _terminal,
+                              controller: _terminalController,
+                              backgroundOpacity: 0,
+                              textStyle: TerminalStyle(
+                                fontSize: 12,
+                                fontFamily: GoogleFonts.firaCode().fontFamily ?? 'monospace',
+                              ),
+                            ),
                           ),
-                        ),
-                      ),
-                      if (_detectedUrl != null && !_apkBuildSuccess)
-                        Positioned(
-                          left: 12,
-                          right: 12,
-                          bottom: 12,
-                          child: _buildDetectedUrlCard(),
-                        ),
-                      if (_apkBuildSuccess)
-                        Positioned(
-                          left: 12,
-                          right: 12,
-                          bottom: 12,
-                          child: _buildApkCard(),
-                        ),
-                    ],
+                          if (_detectedUrl != null && !_apkBuildSuccess)
+                            Positioned(
+                              left: 12,
+                              right: 12,
+                              bottom: 12,
+                              child: _buildDetectedUrlCard(),
+                            ),
+                          if (_apkBuildSuccess)
+                            Positioned(
+                              left: 12,
+                              right: 12,
+                              bottom: 12,
+                              child: _buildApkCard(),
+                            ),
+                        ],
+                      );
+                    },
                   ),
                 ),
             ],
@@ -477,6 +503,49 @@ class _TerminalWidgetState extends State<TerminalWidget> {
         );
       },
     );
+  }
+
+  void _detectAndOpenClaudeFiles(String cleanData) {
+    final cubit = _ideCubit;
+    if (cubit == null) return;
+
+    for (final match in _claudeEditPattern.allMatches(cleanData)) {
+      var path = (match.group(1) ?? '').trim();
+      if (path.isEmpty || !path.contains('/')) continue;
+
+      // Resolve relative paths using known current dir
+      if (!path.startsWith('/')) {
+        if (_lastKnownDir.isEmpty) continue;
+        path = '$_lastKnownDir/$path';
+      }
+
+      // Skip non-file paths (directories, no extension with no dot at all)
+      final name = path.split('/').last;
+      if (name.isEmpty) continue;
+
+      // Debounce: ignore same path within 4 seconds
+      if (_autoOpenDebounce.contains(path)) continue;
+      _autoOpenDebounce.add(path);
+      Future.delayed(const Duration(seconds: 4), () => _autoOpenDebounce.remove(path));
+
+      final existingIndex = cubit.state.openTabs.indexWhere((t) => t.path == path);
+      if (existingIndex != -1) {
+        // Already open — silently reload content if unmodified
+        cubit.reloadOpenFile(path);
+      } else {
+        // Open new tab and show editor
+        cubit.openFile(path, name);
+      }
+    }
+  }
+
+  void _resizeTerminal(int cols, int rows) {
+    if (cols == _termCols && rows == _termRows) return;
+    if (!mounted) return;
+    _termCols = cols;
+    _termRows = rows;
+    _terminal.resize(cols, rows);
+    _session?.resizeTerminal(cols, rows);
   }
 
   Widget _buildPresetChip(String label, String command) {
@@ -617,6 +686,7 @@ class _TerminalWidgetState extends State<TerminalWidget> {
     }
     _detectUrlsInRoll();
     _detectFlutterBuildCompletion();
+    _detectAndOpenClaudeFiles(cleanData);
   }
 
   // Detect "✓  Built build/app/outputs/flutter-apk/app-release.apk" in the rolling buffer
@@ -782,7 +852,7 @@ class _TerminalWidgetState extends State<TerminalWidget> {
           _downloadProgress = 1.0;
           _apkDownloadDone = true;
         });
-        await OpenFile.open(filePath, type: 'application/vnd.android.package-archive');
+        await _utilsChannel.invokeMethod('installApk', {'path': filePath});
       }
     } catch (e) {
       if (mounted) {

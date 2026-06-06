@@ -191,6 +191,22 @@ class SSHService {
     return await sftp.absolute('.');
   }
 
+  // Execute a shell command and return stdout as a string
+  Future<String> executeCommand(String command) async {
+    final result = await client.run(command).timeout(const Duration(seconds: 15));
+    return utf8.decode(result, allowMalformed: true);
+  }
+
+  // SFTP Operations: Upload binary file (e.g. images from device)
+  Future<void> uploadFileBinary(String remotePath, Uint8List bytes) async {
+    final remoteFile = await sftp.open(
+      remotePath,
+      mode: SftpFileOpenMode.write | SftpFileOpenMode.create | SftpFileOpenMode.truncate,
+    );
+    await remoteFile.write(Stream.value(bytes));
+    await remoteFile.close();
+  }
+
   // SFTP Operations: Download binary file with optional progress callback
   Future<Uint8List> downloadFileBinary(
     String path, {
