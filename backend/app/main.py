@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from backend.app.config import settings
 from backend.app.database import engine, Base
-from backend.app.routers import auth, tickets, claude, infra, backups, docs, explorer
+from backend.app.routers import auth, tickets, claude, infra, backups, docs, explorer, registro, documentacion
 from backend.app.security import require_actor
 
 
@@ -41,6 +41,8 @@ protegido = [Depends(require_actor)]
 
 app.include_router(auth.router, prefix=settings.API_V1_STR)
 app.include_router(tickets.router, prefix=settings.API_V1_STR, dependencies=protegido)
+app.include_router(registro.router, prefix=settings.API_V1_STR, dependencies=protegido)
+app.include_router(documentacion.router, prefix=settings.API_V1_STR, dependencies=protegido)
 app.include_router(claude.router, prefix=settings.API_V1_STR, dependencies=protegido)
 app.include_router(claude.ws_router, prefix=settings.API_V1_STR)  # se autentica solo
 app.include_router(infra.router, prefix=settings.API_V1_STR, dependencies=protegido)
