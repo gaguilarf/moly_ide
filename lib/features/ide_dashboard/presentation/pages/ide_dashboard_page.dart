@@ -13,6 +13,7 @@ import 'package:moly_ide/features/explorer/presentation/widgets/file_explorer_wi
 import 'package:moly_ide/features/editor/presentation/widgets/code_editor_widget.dart';
 import 'package:moly_ide/features/terminal/presentation/widgets/terminal_widget.dart';
 import 'package:moly_ide/features/terminal/presentation/widgets/floating_dpad_widget.dart';
+import 'package:moly_ide/features/monitor/presentation/pages/resource_monitor_page.dart';
 
 class IDEDashboardPage extends StatelessWidget {
   const IDEDashboardPage({super.key});
@@ -396,6 +397,21 @@ class _IDEDashboardViewState extends State<IDEDashboardView> {
 
               return Row(
                 children: [
+                  IconButton(
+                    icon: const Icon(
+                      Icons.monitor_heart_rounded,
+                      color: AppTheme.accentBlue,
+                    ),
+                    tooltip: 'Recursos del VPS',
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (context) =>
+                                const ResourceMonitorPage()),
+                      );
+                    },
+                  ),
                   if (width < 500)
                     IconButton(
                       icon: Icon(
