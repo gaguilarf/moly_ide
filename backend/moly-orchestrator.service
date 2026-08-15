@@ -3,6 +3,10 @@ Description=Moly Orchestrator Backend API (Jetson Orin Nano)
 # PostgreSQL vive en un contenedor, no en el host: sin docker no hay base.
 After=network-online.target docker.service
 Wants=network-online.target docker.service
+# Va en [Unit], no en [Service]: puesto en la otra seccion systemd lo ignora en
+# silencio y el arranque en bucle -por ejemplo, si falta una variable
+# obligatoria- se rinde a los 5 intentos y el servicio se queda abajo.
+StartLimitIntervalSec=0
 
 [Service]
 Type=simple
@@ -15,10 +19,6 @@ EnvironmentFile=/home/jetson/moly_backend/.env
 ExecStart=/home/jetson/moly_backend/venv/bin/uvicorn backend.app.main:app --host 0.0.0.0 --port 8000 --workers 1
 Restart=always
 RestartSec=5
-
-# Si el arranque falla en bucle (por ejemplo, falta una variable obligatoria),
-# que systemd siga reintentando en vez de rendirse a los 5 intentos.
-StartLimitIntervalSec=0
 
 NoNewPrivileges=true
 PrivateTmp=true

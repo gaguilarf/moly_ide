@@ -1,7 +1,13 @@
-"""
-Script para sembrar el usuario administrador en PostgreSQL
-Email: gustavo.f.aguilar1998@gmail.com
-Password: Gus19982***/
+"""Siembra el primer usuario del panel de Moly en PostgreSQL.
+
+Existe porque POST /auth/register exige credencial: el primer usuario no puede
+crearse por la API, que es justo lo que se queria -un registro abierto en una
+API que controla el VPS significa que cualquiera en la red se hace una cuenta-.
+
+La contrasena se pasa por entorno y NO se escribe aqui. Antes estaba en claro en
+este mismo fichero, junto al correo, y entro asi al repositorio.
+
+    SEED_EMAIL=... SEED_PASSWORD=... python3 migrations/seed_user.py
 """
 
 import asyncio
@@ -11,19 +17,24 @@ from passlib.context import CryptContext
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-EMAIL = "gustavo.f.aguilar1998@gmail.com"
-RAW_PASS = "Gus19982***/"
-NAME = "Gustavo Aguilar"
-ROLE = "admin"
+EMAIL = os.environ.get("SEED_EMAIL", "")
+RAW_PASS = os.environ.get("SEED_PASSWORD", "")
+NAME = os.environ.get("SEED_NAME", "Administrador")
+ROLE = os.environ.get("SEED_ROLE", "admin")
 
-PG_DSN = os.getenv(
-    "PG_DSN", "postgresql://postgres:postgres@192.168.0.109:5432/moly_orchestrator"
-)
+if not EMAIL or not RAW_PASS:
+    raise SystemExit("Faltan SEED_EMAIL y SEED_PASSWORD en el entorno.")
+
+# Sin valor por defecto: el que habia apuntaba a un usuario que no existe
+# (postgres) y ademas llevaba una credencial escrita en el repositorio.
+PG_DSN = os.environ.get("PG_DSN", "")
+if not PG_DSN:
+    raise SystemExit("Falta PG_DSN en el entorno.")
 
 
 async def seed_user():
     hashed = pwd_context.hash(RAW_PASS)
-    print(f"Generado Hash Bcrypt: {hashed}")
+    # No se imprime el hash: acaba en los logs del terminal.
 
     try:
         conn = await asyncpg.connect(PG_DSN)

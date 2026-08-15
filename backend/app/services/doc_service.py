@@ -32,11 +32,14 @@ class DocumentationService:
         return sorted(items, key=lambda d: (d.category, d.title))
 
     async def get_document_content(self, rel_path: str) -> Optional[str]:
-        # Prevenir directory traversal
-        clean_path = os.path.normpath(rel_path).lstrip("/\\")
-        full_path = os.path.join(self.docs_dir, clean_path)
+        # Prevenir directory traversal. La comprobacion se hace sobre la ruta YA
+        # resuelta, no sobre la union sin normalizar: con lo anterior,
+        # "../../moly_backend/.env" empezaba por el directorio de docs y se
+        # servia, y ese fichero tiene la clave con la que se firman los JWT.
+        raiz = os.path.realpath(self.docs_dir)
+        full_path = os.path.realpath(os.path.join(raiz, rel_path.lstrip("/\\")))
 
-        if not full_path.startswith(os.path.abspath(self.docs_dir)):
+        if full_path != raiz and not full_path.startswith(raiz + os.sep):
             return None
 
         if not os.path.exists(full_path):

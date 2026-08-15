@@ -80,9 +80,10 @@ CREATE TABLE IF NOT EXISTS panel_users (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-INSERT INTO panel_users (email, name, password_hash, role, is_active) VALUES
-    ('gustavo.f.aguilar1998@gmail.com', 'Gustavo Aguilar', '$2b$12$PtE0MUa6mwu6RfCcRes3KeOcsr9c9doZtkdS3FDz9qat.c0/rze4C', 'admin', true)
-ON CONFLICT (email) DO NOTHING;
+-- El primer usuario NO se siembra aqui: el hash bcrypt de una contrasena real
+-- en un fichero versionado es una contrasena publicada, y un hash se ataca
+-- fuera de linea sin limite de intentos. Se crea con:
+--     SEED_EMAIL=... SEED_PASSWORD=... PG_DSN=... python3 migrations/seed_user.py
 
 -- 4. Proyectos y Sprints
 CREATE TABLE IF NOT EXISTS ticket_projects (

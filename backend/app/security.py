@@ -51,7 +51,16 @@ def extraer_token(authorization: Optional[str]) -> Optional[str]:
 def es_token_de_agente(token: str) -> bool:
     # compare_digest y no ==: comparar tokens carácter a carácter deja medir
     # cuántos aciertas por el tiempo de respuesta.
-    return hmac.compare_digest(token, settings.AGENT_API_TOKEN)
+    #
+    # Se comparan los bytes: con cadenas, compare_digest lanza TypeError en
+    # cuanto el token trae un carácter no ASCII, y eso convertía un 401 en un
+    # 500 —basta con mandar una eñe para tirar la comprobación—.
+    try:
+        return hmac.compare_digest(
+            token.encode("utf-8"), settings.AGENT_API_TOKEN.encode("utf-8")
+        )
+    except (AttributeError, UnicodeError):
+        return False
 
 
 async def resolver_actor(

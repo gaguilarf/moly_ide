@@ -1,6 +1,7 @@
 import asyncssh
 import asyncio
 import logging
+import shlex
 from typing import List, Dict, Optional, Any
 from datetime import datetime, timezone
 from backend.app.schemas.infra import PortInfo, ServerInfrastructureStatus, BackupFileInfo, DatabaseBackupStatus, BackupsOverview, FileItem
@@ -177,7 +178,9 @@ class SSHInspectorService:
 
     async def list_remote_directory(self, remote_path: str = "/root") -> List[FileItem]:
         """Explorador de directorios en modo solo lectura."""
-        cmd = f"ls -la --time-style=+'%Y-%m-%d %H:%M:%S' '{remote_path}'"
+        # shlex.quote y no comillas a mano: una comilla dentro de la ruta
+        # cerraba la cadena y el resto corria como root en el VPS.
+        cmd = f"ls -la --time-style=+'%Y-%m-%d %H:%M:%S' {shlex.quote(remote_path)}"
         stdout = await self._execute_remote_command(
             settings.VPS_BRITTANY_HOST,
             settings.VPS_BRITTANY_USER,
@@ -189,18 +192,15 @@ class SSHInspectorService:
             return files
 
         for line in stdout.splitlines()[1:]:
-            parts = line.split(maxsplit=8)
-            if len(parts) < 9:
+            parts = line.split(maxsplit=7)
+            if len(parts) < 8:
                 continue
-            perms, _, _, _, size_str, date_str, time_str, name = (
+            perms, size_str, date_str, time_str, name = (
                 parts[0],
-                parts[1],
-                parts[2],
-                parts[3],
                 parts[4],
                 parts[5],
                 parts[6],
-                parts[8],
+                parts[7],
             )
             if name in [".", ".."]:
                 continue
@@ -221,7 +221,7 @@ class SSHInspectorService:
         if not file_path.endswith((".env", ".env.local", ".env.example", ".env.production", ".cnf", ".conf", ".yaml", ".yml", ".json")):
             raise ValueError("Solo se permite la lectura de archivos de configuración y entorno.")
 
-        cmd = f"cat '{file_path}'"
+        cmd = f"cat {shlex.quote(file_path)}"
         return await self._execute_remote_command(
             settings.VPS_BRITTANY_HOST,
             settings.VPS_BRITTANY_USER,
