@@ -14,7 +14,7 @@ from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import or_, select, text
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.app.database import get_db
@@ -285,6 +285,20 @@ async def crear_tema(payload: dict, db: AsyncSession = Depends(get_db), actor: A
     existe = (await db.execute(text("SELECT 1 FROM doc_temas WHERE slug = :s"), {"s": slug})).first()
     if existe:
         raise HTTPException(status_code=409, detail=f"Ya existe un tema con el slug {slug}")
+
+    # Se comprueba aqui para poder decir CUALES valen. Dejarlo a la clave ajena
+    # devolvia un 500 con un ForeignKeyViolationError en el log, que no le dice
+    # a quien llama ni que campo estaba mal ni que puede poner.
+    proyecto = payload.get("proyecto")
+    if proyecto:
+        validos = [
+            r[0] for r in (await db.execute(text("SELECT slug FROM registro_proyectos ORDER BY slug"))).all()
+        ]
+        if proyecto not in validos:
+            raise HTTPException(
+                status_code=422,
+                detail=f"proyecto '{proyecto}' no existe; use uno de: {', '.join(validos)}",
+            )
 
     fila = (
         await db.execute(
