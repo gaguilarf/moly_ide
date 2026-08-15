@@ -29,7 +29,7 @@ class ClaudeAccount(Base):
     alias = Column(String(50), unique=True, nullable=False)
     email = Column(String(255), nullable=True)
     session_token_encrypted = Column(Text, nullable=True)
-    status = Column(SQLEnum(ClaudeAccountStatus), default=ClaudeAccountStatus.activa, nullable=False)
+    status = Column(SQLEnum(ClaudeAccountStatus, name="claude_account_status"), default=ClaudeAccountStatus.activa, nullable=False)
     rate_limit_resets_at = Column(DateTime(timezone=True), nullable=True)
     last_used_at = Column(DateTime(timezone=True), nullable=True)
     is_primary = Column(Boolean, default=False, nullable=False)
@@ -48,7 +48,7 @@ class ClaudeTask(Base):
     prompt = Column(Text, nullable=False)
     target_repo = Column(String(100), nullable=True)
     target_branch = Column(String(100), nullable=True)
-    status = Column(SQLEnum(ClaudeTaskStatus), default=ClaudeTaskStatus.pendiente, nullable=False, index=True)
+    status = Column(SQLEnum(ClaudeTaskStatus, name="claude_task_status"), default=ClaudeTaskStatus.pendiente, nullable=False, index=True)
     pending_question = Column(Text, nullable=True)  # Pregunta del freno duro
     human_response = Column(Text, nullable=True)    # Respuesta provista desde la app móvil
     execution_logs = Column(Text, nullable=True)

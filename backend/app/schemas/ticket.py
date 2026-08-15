@@ -98,8 +98,16 @@ class TicketCreate(BaseModel):
 
 class TicketTransition(BaseModel):
     to_status: TicketStatus
-    actor: str = "mobile_user"
+    actor: Optional[str] = None  # si no viene, se usa el actor autenticado
     note: Optional[str] = None
+
+
+class TicketNote(BaseModel):
+    """Comentario o plan en el historial del ticket."""
+
+    note: str
+    kind: EventKind = EventKind.comentario
+    actor: Optional[str] = None
 
 
 class TicketUpdate(BaseModel):
