@@ -51,6 +51,11 @@ class Settings(BaseSettings):
     # Claude CLI paths
     CLAUDE_CLI_PATH: str = os.getenv("CLAUDE_CLI_PATH", "claude")
 
+    # Fichero de huellas para verificar al servidor SSH. Con None se aceptaba
+    # cualquiera que respondiera en esa IP, y por esa conexion va una sesion
+    # root del VPS de produccion.
+    SSH_KNOWN_HOSTS: str = os.getenv("SSH_KNOWN_HOSTS", "/home/jetson/.ssh/known_hosts")
+
     @property
     def cors_origins(self) -> List[str]:
         return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]

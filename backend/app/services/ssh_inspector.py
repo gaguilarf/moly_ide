@@ -41,7 +41,17 @@ CATALOGO_PUERTOS = {
 class SSHInspectorService:
     async def _execute_remote_command(self, host: str, user: str, key_path: str, command: str) -> Optional[str]:
         try:
-            async with asyncssh.connect(host, username=user, client_keys=[key_path], known_hosts=None) as conn:
+            # known_hosts=None aceptaba CUALQUIER servidor que respondiera en esa
+            # IP: quien se metiera en medio recibia una sesion root del VPS de
+            # produccion y, de paso, el contenido de los .env que se pidan. Se
+            # verifica contra el known_hosts del usuario, que es donde quedo la
+            # huella al copiar la clave.
+            async with asyncssh.connect(
+                host,
+                username=user,
+                client_keys=[key_path],
+                known_hosts=settings.SSH_KNOWN_HOSTS,
+            ) as conn:
                 result = await conn.run(command, check=False)
                 return result.stdout
         except Exception as e:
