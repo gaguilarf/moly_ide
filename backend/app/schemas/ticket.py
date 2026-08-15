@@ -39,8 +39,27 @@ class SprintOut(BaseModel):
 class SprintCreate(BaseModel):
     name: str
     goal: Optional[str] = None
+    # Se crea activo por defecto: un sprint nuevo que nace en 'planificado' no
+    # recibe los tickets nuevos (create_ticket busca el activo) y hay que
+    # acordarse de activarlo a mano.
+    status: SprintStatus = SprintStatus.activo
     start_date: Optional[date] = None
     end_date: Optional[date] = None
+
+
+class SprintClose(BaseModel):
+    """Cierre de sprint: se cierra este y nace el siguiente con lo pendiente."""
+
+    next_sprint_name: Optional[str] = None
+    next_sprint_goal: Optional[str] = None
+    next_sprint_start_date: Optional[date] = None
+    next_sprint_end_date: Optional[date] = None
+
+
+class SprintCloseOut(BaseModel):
+    closed: SprintOut
+    next: SprintOut
+    carried_over: int
 
 
 class TicketEventOut(BaseModel):
