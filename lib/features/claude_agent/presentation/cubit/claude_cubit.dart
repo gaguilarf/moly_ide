@@ -66,8 +66,12 @@ class ClaudeCubit extends Cubit<ClaudeState> {
           status: ClaudeStateStatus.success,
           accounts: accounts,
           tasks: tasks,
+          // Sin los `clear*`, cuando ya no hay tarea viva se quedaba la
+          // anterior en el estado —y su pregunta— para siempre.
           activeTask: active,
+          clearActiveTask: active == null,
           pendingQuestion: active?.pendingQuestion,
+          clearQuestion: active?.pendingQuestion == null,
         ),
       );
     } catch (e) {

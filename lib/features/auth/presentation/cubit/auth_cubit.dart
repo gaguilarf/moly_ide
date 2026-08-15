@@ -14,15 +14,15 @@ class AuthCubit extends Cubit<AuthState> {
   static const String vaultPasswordKey = 'vault_saved_password';
   static const String vaultRememberKey = 'vault_remember_credentials';
 
-  AuthCubit({
-    required this.apiClient,
-    required this.secureStorage,
-  }) : super(const AuthState());
+  AuthCubit({required this.apiClient, required this.secureStorage})
+    : super(const AuthState());
 
   Future<void> checkAuth() async {
     emit(state.copyWith(status: AuthStatus.checking));
     try {
-      final token = await secureStorage.read(key: OrchestratorApiClient.storageKeyAuthToken);
+      final token = await secureStorage.read(
+        key: OrchestratorApiClient.storageKeyAuthToken,
+      );
       final userJson = await secureStorage.read(key: userStorageKey);
       final savedEmail = await secureStorage.read(key: vaultEmailKey);
       final savedPassword = await secureStorage.read(key: vaultPasswordKey);
@@ -31,29 +31,39 @@ class AuthCubit extends Cubit<AuthState> {
 
       if (token != null && token.isNotEmpty && userJson != null) {
         final user = AuthUserModel.fromJson(jsonDecode(userJson));
-        emit(state.copyWith(
-          status: AuthStatus.authenticated,
-          token: token,
-          user: user,
-          savedEmail: savedEmail,
-          savedPassword: savedPassword,
-          rememberCredentials: remember,
-          currentServerUrl: apiClient.currentBaseUrl,
-        ));
+        emit(
+          state.copyWith(
+            status: AuthStatus.authenticated,
+            token: token,
+            user: user,
+            savedEmail: savedEmail,
+            savedPassword: savedPassword,
+            rememberCredentials: remember,
+            currentServerUrl: apiClient.currentBaseUrl,
+          ),
+        );
       } else {
-        emit(state.copyWith(
-          status: AuthStatus.unauthenticated,
-          savedEmail: savedEmail,
-          savedPassword: savedPassword,
-          rememberCredentials: remember,
-          currentServerUrl: apiClient.currentBaseUrl,
-        ));
+        emit(
+          state.copyWith(
+            status: AuthStatus.unauthenticated,
+            // Si el almacen ya no tiene token, el estado tampoco debe tenerlo.
+            clearSession: true,
+            savedEmail: savedEmail,
+            savedPassword: savedPassword,
+            clearSavedCredentials: savedEmail == null && savedPassword == null,
+            rememberCredentials: remember,
+            currentServerUrl: apiClient.currentBaseUrl,
+          ),
+        );
       }
     } catch (_) {
-      emit(state.copyWith(
-        status: AuthStatus.unauthenticated,
-        currentServerUrl: apiClient.currentBaseUrl,
-      ));
+      emit(
+        state.copyWith(
+          status: AuthStatus.unauthenticated,
+          clearSession: true,
+          currentServerUrl: apiClient.currentBaseUrl,
+        ),
+      );
     }
   }
 
@@ -73,17 +83,20 @@ class AuthCubit extends Cubit<AuthState> {
   }) async {
     emit(state.copyWith(status: AuthStatus.loading, errorMessage: null));
     try {
-      final resp = await apiClient.dio.post('/auth/login', data: {
-        'email': email.trim(),
-        'password': password,
-      });
+      final resp = await apiClient.dio.post(
+        '/auth/login',
+        data: {'email': email.trim(), 'password': password},
+      );
 
       final token = resp.data['access_token']?.toString() ?? '';
       final user = AuthUserModel.fromJson(resp.data['user']);
 
       // 1. Guardar token y perfil activo
       await apiClient.setAuthToken(token);
-      await secureStorage.write(key: userStorageKey, value: jsonEncode(user.toJson()));
+      await secureStorage.write(
+        key: userStorageKey,
+        value: jsonEncode(user.toJson()),
+      );
 
       // 2. Guardar en el baúl si el usuario tiene activado recordar
       if (remember) {
@@ -96,19 +109,26 @@ class AuthCubit extends Cubit<AuthState> {
         await secureStorage.write(key: vaultRememberKey, value: 'false');
       }
 
-      emit(state.copyWith(
-        status: AuthStatus.authenticated,
-        token: token,
-        user: user,
-        savedEmail: remember ? email.trim() : null,
-        savedPassword: remember ? password : null,
-        rememberCredentials: remember,
-      ));
+      emit(
+        state.copyWith(
+          status: AuthStatus.authenticated,
+          token: token,
+          user: user,
+          savedEmail: remember ? email.trim() : null,
+          savedPassword: remember ? password : null,
+          // Sin esto, desmarcar «recordar» borraba el baul del almacen pero
+          // dejaba el correo y la contrasena anteriores en el estado.
+          clearSavedCredentials: !remember,
+          rememberCredentials: remember,
+        ),
+      );
     } catch (e) {
-      emit(state.copyWith(
-        status: AuthStatus.failure,
-        errorMessage: 'Credenciales inválidas o error de conexión.',
-      ));
+      emit(
+        state.copyWith(
+          status: AuthStatus.failure,
+          errorMessage: 'Credenciales inválidas o error de conexión.',
+        ),
+      );
     }
   }
 
@@ -124,12 +144,16 @@ class AuthCubit extends Cubit<AuthState> {
     final savedEmail = await secureStorage.read(key: vaultEmailKey);
     final savedPassword = await secureStorage.read(key: vaultPasswordKey);
 
-    emit(state.copyWith(
-      status: AuthStatus.unauthenticated,
-      user: null,
-      token: null,
-      savedEmail: savedEmail,
-      savedPassword: savedPassword,
-    ));
+    emit(
+      state.copyWith(
+        status: AuthStatus.unauthenticated,
+        clearSession: true,
+        clearSavedCredentials: !keepVaultCredentials,
+        user: null,
+        token: null,
+        savedEmail: savedEmail,
+        savedPassword: savedPassword,
+      ),
+    );
   }
 }

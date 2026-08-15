@@ -12,97 +12,184 @@ class TicketDetailPage extends StatelessWidget {
 
   const TicketDetailPage({super.key, required this.ticket});
 
-  void _showTransitionDialog(BuildContext context) {
+  Future<void> _showTransitionDialog(BuildContext context) async {
     // Solo los destinos que el backend acepta desde el estado actual.
     final nextStatuses = kTicketTransitions[ticket.status] ?? const <String>[];
     if (nextStatuses.isEmpty) return;
 
+    // Cubit y Navigator se toman ANTES del primer await: después de esperar al
+    // servidor, este `context` puede haber dejado de estar montado y buscarlos
+    // por el árbol sería mirar un widget que ya no existe.
+    final ticketsCubit = context.read<TicketsCubit>();
+    final navegadorPagina = Navigator.of(context);
+
     String selected = nextStatuses.first;
     final noteController = TextEditingController();
+    bool enviando = false;
+    String? errorServidor;
 
-    showDialog(
+    await showDialog<void>(
       context: context,
+      // Mientras la petición está en vuelo no se puede descartar tocando fuera:
+      // el diálogo es lo único que sabe si el cambio salió bien.
+      barrierDismissible: false,
       builder: (dialContext) => StatefulBuilder(
-        builder: (context, setDialState) => AlertDialog(
-          backgroundColor: AppTheme.surface,
-          title: Text(
-            'Mover Estado de ${ticket.code}',
-            style: GoogleFonts.outfit(
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              DropdownButtonFormField<String>(
-                initialValue: selected,
-                dropdownColor: AppTheme.surfaceLight,
-                decoration: const InputDecoration(labelText: 'Nuevo Estado'),
-                items: nextStatuses
-                    .map(
-                      (s) => DropdownMenuItem(
-                        value: s,
-                        child: Text(
-                          (kStatusLabel[s] ?? s).toUpperCase(),
-                          style: GoogleFonts.firaCode(fontSize: 13),
-                        ),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (val) {
-                  if (val != null) setDialState(() => selected = val);
-                },
+        builder: (_, setDialState) {
+          final faltaNota =
+              selected == 'hecho' && noteController.text.trim().isEmpty;
+          return AlertDialog(
+            backgroundColor: AppTheme.surface,
+            title: Text(
+              'Mover Estado de ${ticket.code}',
+              style: GoogleFonts.outfit(
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
               ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: noteController,
-                style: const TextStyle(color: Colors.white),
-                decoration: InputDecoration(
-                  labelText: selected == 'hecho'
-                      ? 'Nota de cierre (obligatoria)'
-                      : 'Nota de transición',
-                  hintText: 'Ej. Tests unitarios pasados...',
-                  errorText:
-                      selected == 'hecho' && noteController.text.trim().isEmpty
-                      ? 'Para cerrar hace falta decir qué pasó: tests, commit o rama.'
-                      : null,
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                DropdownButtonFormField<String>(
+                  initialValue: selected,
+                  dropdownColor: AppTheme.surfaceLight,
+                  decoration: const InputDecoration(labelText: 'Nuevo Estado'),
+                  items: nextStatuses
+                      .map(
+                        (s) => DropdownMenuItem(
+                          value: s,
+                          child: Text(
+                            (kStatusLabel[s] ?? s).toUpperCase(),
+                            style: GoogleFonts.firaCode(fontSize: 13),
+                          ),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: enviando
+                      ? null
+                      : (val) {
+                          if (val != null) {
+                            // El destino cambia: el rechazo anterior era del
+                            // destino viejo y dejarlo puesto confunde.
+                            setDialState(() {
+                              selected = val;
+                              errorServidor = null;
+                            });
+                          }
+                        },
                 ),
-                onChanged: (_) => setDialState(() {}),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: noteController,
+                  enabled: !enviando,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    labelText: selected == 'hecho'
+                        ? 'Nota de cierre (obligatoria)'
+                        : 'Nota de transición',
+                    hintText: 'Ej. Tests unitarios pasados...',
+                    errorText: faltaNota
+                        ? 'Para cerrar hace falta decir qué pasó: tests, commit o rama.'
+                        : null,
+                  ),
+                  onChanged: (_) => setDialState(() {}),
+                ),
+                if (errorServidor != null) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFF3366).withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: const Color(0xFFFF3366)),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(
+                          Icons.error_outline_rounded,
+                          size: 18,
+                          color: Color(0xFFFF3366),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            // El texto viene del `detail` del servidor: dice
+                            // exactamente por qué rechazó el cambio.
+                            'El servidor rechazó el cambio: $errorServidor',
+                            style: GoogleFonts.outfit(
+                              fontSize: 13,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: enviando ? null : () => Navigator.pop(dialContext),
+                child: const Text('Cancelar'),
+              ),
+              ElevatedButton(
+                // El backend exige nota de cierre para 'hecho' (422). Sin este
+                // freno el ticket parecía cerrarse y volvía a su estado al recargar.
+                onPressed: (enviando || faltaNota)
+                    ? null
+                    : () async {
+                        setDialState(() {
+                          enviando = true;
+                          errorServidor = null;
+                        });
+
+                        final nota = noteController.text.trim();
+                        final error = await ticketsCubit.transitionTicket(
+                          code: ticket.code,
+                          toStatus: selected,
+                          note: nota.isNotEmpty ? nota : null,
+                        );
+
+                        if (!dialContext.mounted) return;
+
+                        // Solo se sale si el servidor aceptó. Antes se cerraba
+                        // el diálogo y se volvía a la lista sin esperar, así que
+                        // un rechazo se veía igual que un acierto.
+                        if (error != null) {
+                          setDialState(() {
+                            enviando = false;
+                            errorServidor = error;
+                          });
+                          return;
+                        }
+
+                        Navigator.pop(dialContext);
+                        navegadorPagina
+                            .pop(); // Volver a la lista, ya recargada
+                      },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primaryPurple,
+                ),
+                child: enviando
+                    ? const SizedBox(
+                        height: 16,
+                        width: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Text('Confirmar'),
               ),
             ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialContext),
-              child: const Text('Cancelar'),
-            ),
-            ElevatedButton(
-              // El backend exige nota de cierre para 'hecho' (422). Sin este
-              // freno el ticket parecía cerrarse y volvía a su estado al recargar.
-              onPressed:
-                  selected == 'hecho' && noteController.text.trim().isEmpty
-                  ? null
-                  : () {
-                      Navigator.pop(dialContext);
-                      context.read<TicketsCubit>().transitionTicket(
-                        code: ticket.code,
-                        toStatus: selected,
-                        note: noteController.text.trim().isNotEmpty
-                            ? noteController.text.trim()
-                            : null,
-                      );
-                      Navigator.pop(context); // Volver a la lista
-                    },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.primaryPurple,
-              ),
-              child: const Text('Confirmar'),
-            ),
-          ],
-        ),
+          );
+        },
       ),
     );
+
+    noteController.dispose();
   }
 
   @override
@@ -163,7 +250,9 @@ class TicketDetailPage extends StatelessWidget {
                     vertical: 4,
                   ),
                   decoration: BoxDecoration(
-                    color: priorityColor(ticket.priority).withValues(alpha: 0.15),
+                    color: priorityColor(
+                      ticket.priority,
+                    ).withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(6),
                     border: Border.all(
                       color: priorityColor(ticket.priority),
