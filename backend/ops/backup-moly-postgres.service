@@ -1,0 +1,11 @@
+[Unit]
+Description=Copia de seguridad de moly_orchestrator (PostgreSQL)
+# Sin la raiz montada no hay destino donde escribir, y sin docker no hay base.
+RequiresMountsFor=/mnt/storage
+After=docker.service
+Wants=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/backup-moly-postgres.sh
+User=root

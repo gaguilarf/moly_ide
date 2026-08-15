@@ -1,0 +1,6 @@
+# Estos ficheros acaban ejecutandose en la Jetson (Linux). Sin esto, un clon en
+# Windows los deja con CRLF y bash falla con un "\r: command not found" que no
+# dice en ningun sitio que el problema sea el final de linea.
+*.sh text eol=lf
+*.service text eol=lf
+*.timer text eol=lf

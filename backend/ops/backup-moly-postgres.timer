@@ -1,0 +1,12 @@
+[Unit]
+Description=Volcado diario de moly_orchestrator
+
+[Timer]
+# Media hora despues del volcado de `lab`, para no pelearse por el disco.
+OnCalendar=*-*-* 04:00:00
+# Si la Jetson estaba apagada a esa hora, se ejecuta al encender.
+Persistent=true
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target

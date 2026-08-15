@@ -1,0 +1,27 @@
+[Unit]
+Description=Moly Orchestrator Backend API (Jetson Orin Nano)
+# PostgreSQL vive en un contenedor, no en el host: sin docker no hay base.
+After=network-online.target docker.service
+Wants=network-online.target docker.service
+
+[Service]
+Type=simple
+User=jetson
+WorkingDirectory=/home/jetson/moly_backend
+EnvironmentFile=/home/jetson/moly_backend/.env
+# Un solo worker, y no es por ahorrar: el orquestador guarda en memoria del
+# proceso los WebSocket registrados y el estado del freno duro. Con dos workers,
+# la pregunta de Claude se queda en uno y el movil habla con el otro.
+ExecStart=/home/jetson/moly_backend/venv/bin/uvicorn backend.app.main:app --host 0.0.0.0 --port 8000 --workers 1
+Restart=always
+RestartSec=5
+
+# Si el arranque falla en bucle (por ejemplo, falta una variable obligatoria),
+# que systemd siga reintentando en vez de rendirse a los 5 intentos.
+StartLimitIntervalSec=0
+
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
