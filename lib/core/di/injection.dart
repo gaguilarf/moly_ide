@@ -1,6 +1,5 @@
 import 'package:get_it/get_it.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:moly_ide/core/ssh/ssh_service.dart';
 import 'package:moly_ide/core/api/orchestrator_api_client.dart';
 import 'package:moly_ide/core/api/websocket_service.dart';
 
@@ -14,11 +13,6 @@ Future<void> initDependencies() async {
         encryptedSharedPreferences: true,
       ),
     ),
-  );
-
-  // SSH & SFTP Central Service
-  locator.registerLazySingleton<SSHService>(
-    () => SSHService(secureStorage: locator<FlutterSecureStorage>()),
   );
 
   // Jetson Orchestrator API Client & WebSocket

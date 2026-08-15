@@ -32,6 +32,10 @@ Este archivo contiene las directrices, arquitectura y reglas operativas para cua
    - En Flutter, almacenar tokens y credenciales en `FlutterSecureStorage` con `EncryptedSharedPreferences`.
 4. **Modo Solo Lectura para Archivos Remotos**:
    - En la app móvil, el explorador de archivos y visor de `.env` opera en modo **solo lectura**. Las modificaciones se solicitan al agente Claude mediante tickets o prompts para mantener la trazabilidad y evitar fallos manuales.
+5. **La app NO tiene IDE**:
+   - El terminal, el editor de código, el visor de diferencias, el explorador por SSH y su formulario de conexión **se retiraron a propósito** (MOLY-3) y **no se reintroducen**. El nombre del repositorio es histórico.
+   - Que un módulo compile sin tener pantalla que lo abra **no es motivo para devolverle una entrada en el menú**: es motivo para borrarlo. Así volvió el IDE una vez.
+   - Lo único que hacía falta de ahí —mirar archivos del servidor— vive en el explorador de solo lectura, que tiene su propia entrada en el menú y va por la API, no por SSH.
 
 ---
 

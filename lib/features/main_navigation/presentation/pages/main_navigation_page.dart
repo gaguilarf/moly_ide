@@ -17,10 +17,7 @@ import 'package:moly_ide/features/documentation/presentation/cubit/docs_cubit.da
 import 'package:moly_ide/features/documentation/presentation/pages/docs_page.dart';
 import 'package:moly_ide/features/explorer_readonly/presentation/cubit/readonly_explorer_cubit.dart';
 import 'package:moly_ide/features/explorer_readonly/presentation/pages/readonly_explorer_page.dart';
-import 'package:moly_ide/core/ssh/ssh_service.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:moly_ide/features/connection/presentation/cubit/connection_cubit.dart';
-import 'package:moly_ide/features/ide_dashboard/presentation/pages/ide_gate.dart';
 
 class MainNavigationPage extends StatefulWidget {
   const MainNavigationPage({super.key});
@@ -39,7 +36,6 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
     BackupsPage(),
     DocsPage(),
     ReadonlyExplorerPage(),
-    IdeGate(),
   ];
 
   @override
@@ -71,16 +67,6 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
         BlocProvider<ReadonlyExplorerCubit>(
           create: (context) => ReadonlyExplorerCubit(
             apiClient: locator<OrchestratorApiClient>(),
-          ),
-        ),
-        // La sesión SSH es de la pestaña IDE, pero se provee aquí porque tiene
-        // que sobrevivir a cambiar de pestaña: si naciera dentro de IdeGate,
-        // salir a Tickets y volver reconstruiría el cubit y pediría el servidor
-        // otra vez con la conexión todavía abierta.
-        BlocProvider<ConnectionCubit>(
-          create: (context) => ConnectionCubit(
-            sshService: locator<SSHService>(),
-            secureStorage: locator<FlutterSecureStorage>(),
           ),
         ),
       ],
@@ -129,10 +115,6 @@ class _MainNavigationPageState extends State<MainNavigationPage> {
               BottomNavigationBarItem(
                 icon: Icon(Icons.folder_copy_rounded),
                 label: 'Explorador',
-              ),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.terminal_rounded),
-                label: 'IDE',
               ),
             ],
           ),
