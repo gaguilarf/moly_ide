@@ -9,7 +9,11 @@ class CpuSnapshot {
   final int idle;
   final int total;
 
-  const CpuSnapshot({required this.id, required this.idle, required this.total});
+  const CpuSnapshot({
+    required this.id,
+    required this.idle,
+    required this.total,
+  });
 
   /// CPU usage (0.0 - 1.0) between two snapshots of the same core.
   double usageSince(CpuSnapshot previous) {
@@ -79,6 +83,11 @@ class SystemStats {
   double get diskUsageRatio =>
       diskTotalKb > 0 ? (diskUsedKb / diskTotalKb).clamp(0.0, 1.0) : 0.0;
 
+  /// El comando que produce lo que [parse] entiende. Ya no lo lanza la app:
+  /// quien lo ejecuta es el backend de Moly en el Jetson (COMANDO_METRICAS en
+  /// backend/app/routers/system.py). Se queda aquí porque es el contrato entre
+  /// los dos lados —el orden de las secciones y el separador '@@@'—, y si uno
+  /// cambia tiene que cambiar el otro.
   static const String command =
       "cat /proc/stat; echo '@@@'; "
       "cat /proc/meminfo; echo '@@@'; "
@@ -194,12 +203,14 @@ class SystemStats {
       final cpu = double.tryParse(parts[parts.length - 2]);
       final mem = double.tryParse(parts[parts.length - 1]);
       if (cpu == null || mem == null) continue;
-      result.add(ProcessEntry(
-        pid: parts[0],
-        name: parts.sublist(1, parts.length - 2).join(' '),
-        cpuPercent: cpu,
-        memPercent: mem,
-      ));
+      result.add(
+        ProcessEntry(
+          pid: parts[0],
+          name: parts.sublist(1, parts.length - 2).join(' '),
+          cpuPercent: cpu,
+          memPercent: mem,
+        ),
+      );
     }
     return result;
   }

@@ -1,15 +1,21 @@
 import 'dart:async';
 
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:moly_ide/core/api/orchestrator_api_client.dart';
 import 'package:moly_ide/core/di/injection.dart';
-import 'package:moly_ide/core/ssh/ssh_service.dart';
 import 'package:moly_ide/core/theme/app_theme.dart';
 import 'package:moly_ide/features/monitor/data/models/system_stats.dart';
 
-/// Full-screen monitor of the remote VPS resources (CPU, RAM, swap, disk).
-/// Polls the server over SSH every [_refreshInterval] and computes CPU usage
-/// from the delta between consecutive /proc/stat snapshots.
+/// Monitor a pantalla completa de los recursos del Jetson (CPU, RAM, swap,
+/// disco). Consulta cada [_refreshInterval] y saca el uso de CPU de la
+/// diferencia entre dos lecturas seguidas de /proc/stat.
+///
+/// Las métricas vienen del backend de Moly, que corre en el propio Jetson, y no
+/// de la sesión SSH compartida: esa apunta a lo que se haya conectado en la
+/// pestaña IDE —normalmente el VPS—, así que esta pantalla enseñaba la máquina
+/// equivocada, y nada en absoluto si no había sesión abierta.
 class ResourceMonitorPage extends StatefulWidget {
   const ResourceMonitorPage({super.key});
 
@@ -20,7 +26,7 @@ class ResourceMonitorPage extends StatefulWidget {
 class _ResourceMonitorPageState extends State<ResourceMonitorPage> {
   static const Duration _refreshInterval = Duration(seconds: 3);
 
-  final SSHService _sshService = locator<SSHService>();
+  final OrchestratorApiClient _apiClient = locator<OrchestratorApiClient>();
 
   Timer? _timer;
   bool _fetching = false;
@@ -48,7 +54,8 @@ class _ResourceMonitorPageState extends State<ResourceMonitorPage> {
     if (_fetching) return;
     _fetching = true;
     try {
-      final output = await _sshService.executeCommand(SystemStats.command);
+      final resp = await _apiClient.dio.get('/system/stats');
+      final output = resp.data['raw']?.toString() ?? '';
       final stats = SystemStats.parse(output);
 
       double? cpuUsage;
@@ -78,11 +85,31 @@ class _ResourceMonitorPageState extends State<ResourceMonitorPage> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _errorMessage = 'No se pudo obtener métricas: $e';
+        _errorMessage = 'No se pudieron obtener métricas: ${_detalle(e)}';
       });
     } finally {
       _fetching = false;
     }
+  }
+
+  /// Host del Jetson tal y como está configurado el cliente, sin el esquema ni
+  /// el puerto: es la máquina que se está midiendo, por definición la misma que
+  /// sirve estas métricas.
+  String get _hostJetson {
+    final uri = Uri.tryParse(_apiClient.currentBaseUrl);
+    return uri?.host ?? _apiClient.currentBaseUrl;
+  }
+
+  /// El backend explica en `detail` por qué no pudo leer las métricas. Enseñar
+  /// el DioException entero escondía ese texto tras un volcado de stack.
+  static String _detalle(Object e) {
+    if (e is DioException) {
+      final data = e.response?.data;
+      if (data is Map && data['detail'] is String) return data['detail'];
+      if (e.response != null) return 'HTTP ${e.response?.statusCode}';
+      return 'sin conexión con el Jetson';
+    }
+    return e.toString();
   }
 
   // Color by severity of usage
@@ -128,23 +155,26 @@ class _ResourceMonitorPageState extends State<ResourceMonitorPage> {
       padding: const EdgeInsets.symmetric(horizontal: 8.0),
       decoration: const BoxDecoration(
         color: AppTheme.surface,
-        border: Border(
-          bottom: BorderSide(color: AppTheme.border, width: 1.2),
-        ),
+        border: Border(bottom: BorderSide(color: AppTheme.border, width: 1.2)),
       ),
       child: Row(
         children: [
           IconButton(
-            icon: const Icon(Icons.arrow_back_rounded,
-                color: AppTheme.textPrimary),
+            icon: const Icon(
+              Icons.arrow_back_rounded,
+              color: AppTheme.textPrimary,
+            ),
             tooltip: 'Volver',
             onPressed: () => Navigator.pop(context),
           ),
-          const Icon(Icons.monitor_heart_rounded,
-              color: AppTheme.accentBlue, size: 22),
+          const Icon(
+            Icons.monitor_heart_rounded,
+            color: AppTheme.accentBlue,
+            size: 22,
+          ),
           const SizedBox(width: 8),
           Text(
-            'Recursos del VPS',
+            'Recursos del Jetson',
             style: GoogleFonts.outfit(
               fontWeight: FontWeight.bold,
               fontSize: 17,
@@ -156,8 +186,10 @@ class _ResourceMonitorPageState extends State<ResourceMonitorPage> {
           ),
           const Spacer(),
           Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 10.0, vertical: 6.0),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 10.0,
+              vertical: 6.0,
+            ),
             decoration: BoxDecoration(
               color: AppTheme.surfaceLight,
               borderRadius: AppTheme.borderRadius,
@@ -169,14 +201,18 @@ class _ResourceMonitorPageState extends State<ResourceMonitorPage> {
                 Container(
                   width: 8,
                   height: 8,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFF00FF66),
+                  decoration: BoxDecoration(
+                    // El punto iba fijo en verde: seguía diciendo «conectado»
+                    // aunque no se estuviera leyendo nada.
+                    color: _errorMessage == null
+                        ? const Color(0xFF00FF66)
+                        : const Color(0xFFFF5252),
                     shape: BoxShape.circle,
                   ),
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  _sshService.host ?? '',
+                  _hostJetson,
                   style: GoogleFonts.firaCode(
                     fontSize: 11,
                     color: AppTheme.textSecondary,
@@ -260,14 +296,19 @@ class _ResourceMonitorPageState extends State<ResourceMonitorPage> {
       ),
       child: Row(
         children: [
-          const Icon(Icons.error_outline_rounded,
-              color: Color(0xFFFF5252), size: 18),
+          const Icon(
+            Icons.error_outline_rounded,
+            color: Color(0xFFFF5252),
+            size: 18,
+          ),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
               _errorMessage!,
               style: GoogleFonts.outfit(
-                  fontSize: 12, color: AppTheme.textPrimary),
+                fontSize: 12,
+                color: AppTheme.textPrimary,
+              ),
             ),
           ),
         ],
@@ -349,35 +390,37 @@ class _ResourceMonitorPageState extends State<ResourceMonitorPage> {
           _progressBar(usage ?? 0.0),
           if (cores.isNotEmpty) ...[
             const SizedBox(height: 16),
-            ...cores.map((core) => Padding(
-                  padding: const EdgeInsets.only(bottom: 8.0),
-                  child: Row(
-                    children: [
-                      SizedBox(
-                        width: 52,
-                        child: Text(
-                          'Core ${core.key.substring(3)}',
-                          style: GoogleFonts.firaCode(
-                            fontSize: 10,
-                            color: AppTheme.textSecondary,
-                          ),
+            ...cores.map(
+              (core) => Padding(
+                padding: const EdgeInsets.only(bottom: 8.0),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 52,
+                      child: Text(
+                        'Core ${core.key.substring(3)}',
+                        style: GoogleFonts.firaCode(
+                          fontSize: 10,
+                          color: AppTheme.textSecondary,
                         ),
                       ),
-                      Expanded(child: _progressBar(core.value, height: 6)),
-                      SizedBox(
-                        width: 48,
-                        child: Text(
-                          '${(core.value * 100).toStringAsFixed(0)}%',
-                          textAlign: TextAlign.right,
-                          style: GoogleFonts.firaCode(
-                            fontSize: 10,
-                            color: AppTheme.textSecondary,
-                          ),
+                    ),
+                    Expanded(child: _progressBar(core.value, height: 6)),
+                    SizedBox(
+                      width: 48,
+                      child: Text(
+                        '${(core.value * 100).toStringAsFixed(0)}%',
+                        textAlign: TextAlign.right,
+                        style: GoogleFonts.firaCode(
+                          fontSize: 10,
+                          color: AppTheme.textSecondary,
                         ),
                       ),
-                    ],
-                  ),
-                )),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ],
         ],
       ),
@@ -491,72 +534,83 @@ class _ResourceMonitorPageState extends State<ResourceMonitorPage> {
           Row(
             children: [
               Expanded(
-                child: Text('PROCESO',
-                    style: GoogleFonts.outfit(
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                        color: AppTheme.textSecondary)),
+                child: Text(
+                  'PROCESO',
+                  style: GoogleFonts.outfit(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.textSecondary,
+                  ),
+                ),
               ),
               SizedBox(
                 width: 60,
-                child: Text('CPU %',
-                    textAlign: TextAlign.right,
-                    style: GoogleFonts.outfit(
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                        color: AppTheme.textSecondary)),
+                child: Text(
+                  'CPU %',
+                  textAlign: TextAlign.right,
+                  style: GoogleFonts.outfit(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.textSecondary,
+                  ),
+                ),
               ),
               SizedBox(
                 width: 60,
-                child: Text('RAM %',
-                    textAlign: TextAlign.right,
-                    style: GoogleFonts.outfit(
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                        color: AppTheme.textSecondary)),
+                child: Text(
+                  'RAM %',
+                  textAlign: TextAlign.right,
+                  style: GoogleFonts.outfit(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.textSecondary,
+                  ),
+                ),
               ),
             ],
           ),
           const Divider(height: 16),
-          ...stats.topProcesses.map((proc) => Padding(
-                padding: const EdgeInsets.only(bottom: 8.0),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        proc.name,
-                        overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.firaCode(
-                          fontSize: 11,
-                          color: AppTheme.textPrimary,
-                        ),
+          ...stats.topProcesses.map(
+            (proc) => Padding(
+              padding: const EdgeInsets.only(bottom: 8.0),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      proc.name,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.firaCode(
+                        fontSize: 11,
+                        color: AppTheme.textPrimary,
                       ),
                     ),
-                    SizedBox(
-                      width: 60,
-                      child: Text(
-                        proc.cpuPercent.toStringAsFixed(1),
-                        textAlign: TextAlign.right,
-                        style: GoogleFonts.firaCode(
-                          fontSize: 11,
-                          color: _usageColor(proc.cpuPercent / 100),
-                        ),
+                  ),
+                  SizedBox(
+                    width: 60,
+                    child: Text(
+                      proc.cpuPercent.toStringAsFixed(1),
+                      textAlign: TextAlign.right,
+                      style: GoogleFonts.firaCode(
+                        fontSize: 11,
+                        color: _usageColor(proc.cpuPercent / 100),
                       ),
                     ),
-                    SizedBox(
-                      width: 60,
-                      child: Text(
-                        proc.memPercent.toStringAsFixed(1),
-                        textAlign: TextAlign.right,
-                        style: GoogleFonts.firaCode(
-                          fontSize: 11,
-                          color: AppTheme.textSecondary,
-                        ),
+                  ),
+                  SizedBox(
+                    width: 60,
+                    child: Text(
+                      proc.memPercent.toStringAsFixed(1),
+                      textAlign: TextAlign.right,
+                      style: GoogleFonts.firaCode(
+                        fontSize: 11,
+                        color: AppTheme.textSecondary,
                       ),
                     ),
-                  ],
-                ),
-              )),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
     );
