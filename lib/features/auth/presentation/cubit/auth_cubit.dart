@@ -1,4 +1,6 @@
 import 'dart:convert';
+
+import 'package:dio/dio.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:moly_ide/core/api/orchestrator_api_client.dart';
@@ -10,21 +12,28 @@ class AuthCubit extends Cubit<AuthState> {
   final FlutterSecureStorage secureStorage;
 
   static const String userStorageKey = 'authenticated_user_profile';
-  static const String vaultEmailKey = 'vault_saved_email';
+  static const String vaultUsernameKey = 'vault_saved_username';
   static const String vaultPasswordKey = 'vault_saved_password';
   static const String vaultRememberKey = 'vault_remember_credentials';
 
   AuthCubit({required this.apiClient, required this.secureStorage})
     : super(const AuthState());
 
+  /// Clave del baúl anterior, cuando se entraba con el correo. Se borra al
+  /// arrancar: al cambiar de clave, el correo Y LA CONTRASEÑA de antes se
+  /// quedaban en el almacén del dispositivo sin que nada volviera a leerlos ni
+  /// a borrarlos nunca.
+  static const String vaultClaveAntiguaCorreo = 'vault_saved_email';
+
   Future<void> checkAuth() async {
     emit(state.copyWith(status: AuthStatus.checking));
     try {
+      await secureStorage.delete(key: vaultClaveAntiguaCorreo);
       final token = await secureStorage.read(
         key: OrchestratorApiClient.storageKeyAuthToken,
       );
       final userJson = await secureStorage.read(key: userStorageKey);
-      final savedEmail = await secureStorage.read(key: vaultEmailKey);
+      final savedUsername = await secureStorage.read(key: vaultUsernameKey);
       final savedPassword = await secureStorage.read(key: vaultPasswordKey);
       final rememberStr = await secureStorage.read(key: vaultRememberKey);
       final remember = rememberStr != 'false';
@@ -36,7 +45,7 @@ class AuthCubit extends Cubit<AuthState> {
             status: AuthStatus.authenticated,
             token: token,
             user: user,
-            savedEmail: savedEmail,
+            savedUsername: savedUsername,
             savedPassword: savedPassword,
             rememberCredentials: remember,
             currentServerUrl: apiClient.currentBaseUrl,
@@ -48,9 +57,10 @@ class AuthCubit extends Cubit<AuthState> {
             status: AuthStatus.unauthenticated,
             // Si el almacen ya no tiene token, el estado tampoco debe tenerlo.
             clearSession: true,
-            savedEmail: savedEmail,
+            savedUsername: savedUsername,
             savedPassword: savedPassword,
-            clearSavedCredentials: savedEmail == null && savedPassword == null,
+            clearSavedCredentials:
+                savedUsername == null && savedPassword == null,
             rememberCredentials: remember,
             currentServerUrl: apiClient.currentBaseUrl,
           ),
@@ -76,17 +86,37 @@ class AuthCubit extends Cubit<AuthState> {
     emit(state.copyWith(rememberCredentials: value));
   }
 
+  /// Pide la sesión mandando `username`, y si el servidor no conoce ese campo
+  /// lo reintenta con `email`.
+  ///
+  /// Es el puente en el otro sentido del que hace el backend: así esta versión
+  /// entra igual contra un Jetson ya migrado que contra uno que todavía no lo
+  /// esté, y el orden en que se actualizan app y servidor deja de importar.
+  Future<Response> _pedirSesion(String usuario, String password) async {
+    try {
+      return await apiClient.dio.post(
+        '/auth/login',
+        data: {'username': usuario, 'password': password},
+      );
+    } on DioException catch (e) {
+      final noConoceElCampo =
+          e.response?.statusCode == 422 || e.response?.statusCode == 400;
+      if (!noConoceElCampo) rethrow;
+      return await apiClient.dio.post(
+        '/auth/login',
+        data: {'email': usuario, 'password': password},
+      );
+    }
+  }
+
   Future<void> login({
-    required String email,
+    required String username,
     required String password,
     bool remember = true,
   }) async {
     emit(state.copyWith(status: AuthStatus.loading, errorMessage: null));
     try {
-      final resp = await apiClient.dio.post(
-        '/auth/login',
-        data: {'email': email.trim(), 'password': password},
-      );
+      final resp = await _pedirSesion(username.trim(), password);
 
       final token = resp.data['access_token']?.toString() ?? '';
       final user = AuthUserModel.fromJson(resp.data['user']);
@@ -100,11 +130,14 @@ class AuthCubit extends Cubit<AuthState> {
 
       // 2. Guardar en el baúl si el usuario tiene activado recordar
       if (remember) {
-        await secureStorage.write(key: vaultEmailKey, value: email.trim());
+        await secureStorage.write(
+          key: vaultUsernameKey,
+          value: username.trim(),
+        );
         await secureStorage.write(key: vaultPasswordKey, value: password);
         await secureStorage.write(key: vaultRememberKey, value: 'true');
       } else {
-        await secureStorage.delete(key: vaultEmailKey);
+        await secureStorage.delete(key: vaultUsernameKey);
         await secureStorage.delete(key: vaultPasswordKey);
         await secureStorage.write(key: vaultRememberKey, value: 'false');
       }
@@ -114,10 +147,10 @@ class AuthCubit extends Cubit<AuthState> {
           status: AuthStatus.authenticated,
           token: token,
           user: user,
-          savedEmail: remember ? email.trim() : null,
+          savedUsername: remember ? username.trim() : null,
           savedPassword: remember ? password : null,
           // Sin esto, desmarcar «recordar» borraba el baul del almacen pero
-          // dejaba el correo y la contrasena anteriores en el estado.
+          // dejaba el usuario y la contrasena anteriores en el estado.
           clearSavedCredentials: !remember,
           rememberCredentials: remember,
         ),
@@ -137,11 +170,11 @@ class AuthCubit extends Cubit<AuthState> {
     await secureStorage.delete(key: userStorageKey);
 
     if (!keepVaultCredentials) {
-      await secureStorage.delete(key: vaultEmailKey);
+      await secureStorage.delete(key: vaultUsernameKey);
       await secureStorage.delete(key: vaultPasswordKey);
     }
 
-    final savedEmail = await secureStorage.read(key: vaultEmailKey);
+    final savedUsername = await secureStorage.read(key: vaultUsernameKey);
     final savedPassword = await secureStorage.read(key: vaultPasswordKey);
 
     emit(
@@ -151,7 +184,7 @@ class AuthCubit extends Cubit<AuthState> {
         clearSavedCredentials: !keepVaultCredentials,
         user: null,
         token: null,
-        savedEmail: savedEmail,
+        savedUsername: savedUsername,
         savedPassword: savedPassword,
       ),
     );

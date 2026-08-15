@@ -15,7 +15,7 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  final _emailController = TextEditingController();
+  final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
   final _serverUrlController = TextEditingController();
   bool _obscurePassword = true;
@@ -31,8 +31,8 @@ class _LoginPageState extends State<LoginPage> {
 
   void _populateFromVault(AuthState state) {
     if (!_initializedFromVault) {
-      if (state.savedEmail != null && state.savedEmail!.isNotEmpty) {
-        _emailController.text = state.savedEmail!;
+      if (state.savedUsername != null && state.savedUsername!.isNotEmpty) {
+        _usernameController.text = state.savedUsername!;
       }
       if (state.savedPassword != null && state.savedPassword!.isNotEmpty) {
         _passwordController.text = state.savedPassword!;
@@ -43,13 +43,13 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   void _handleLogin() {
-    final email = _emailController.text.trim();
+    final username = _usernameController.text.trim();
     final password = _passwordController.text;
 
-    if (email.isEmpty || password.isEmpty) {
+    if (username.isEmpty || password.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Ingresa tu correo y contraseña.', style: GoogleFonts.outfit()),
+          content: Text('Ingresa tu usuario y contraseña.', style: GoogleFonts.outfit()),
           backgroundColor: const Color(0xFFFF3366),
         ),
       );
@@ -61,7 +61,7 @@ class _LoginPageState extends State<LoginPage> {
     }
 
     context.read<AuthCubit>().login(
-          email: email,
+          username: username,
           password: password,
           remember: _rememberCredentials,
         );
@@ -168,7 +168,7 @@ class _LoginPageState extends State<LoginPage> {
                                 style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
                               ),
                               const Spacer(),
-                              if (state.savedEmail != null)
+                              if (state.savedUsername != null)
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                                   decoration: BoxDecoration(
@@ -190,15 +190,17 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                           const SizedBox(height: 16),
 
-                          // Email Input
+                          // Usuario
                           TextField(
-                            controller: _emailController,
-                            keyboardType: TextInputType.emailAddress,
+                            controller: _usernameController,
+                            keyboardType: TextInputType.text,
+                            autocorrect: false,
+                            textCapitalization: TextCapitalization.none,
                             style: const TextStyle(color: Colors.white),
                             decoration: InputDecoration(
-                              labelText: 'Correo electrónico',
-                              hintText: 'admin@brittanygroup.edu.pe',
-                              prefixIcon: const Icon(Icons.email_rounded, color: AppTheme.accentBlue, size: 20),
+                              labelText: 'Usuario',
+                              hintText: 'gaguilar',
+                              prefixIcon: const Icon(Icons.person_rounded, color: AppTheme.accentBlue, size: 20),
                               filled: true,
                               fillColor: AppTheme.surfaceLight,
                               border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),

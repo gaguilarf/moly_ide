@@ -71,7 +71,7 @@ END $$;
 -- 3. Usuarios y Credenciales del Orquestador
 CREATE TABLE IF NOT EXISTS panel_users (
     id SERIAL PRIMARY KEY,
-    email VARCHAR(255) NOT NULL UNIQUE,
+    username VARCHAR(64) NOT NULL UNIQUE,
     name VARCHAR(150) NOT NULL DEFAULT '',
     password_hash VARCHAR(255) NOT NULL,
     role user_role NOT NULL DEFAULT 'developer',

@@ -144,13 +144,13 @@ void main() {
       status: AuthStatus.authenticated,
       user: AuthUserModel(
         id: 1,
-        email: 'gus@ejemplo.dev',
+        username: 'gaguilar',
         name: 'Gus',
         role: 'developer',
         isActive: true,
       ),
       token: 'jwt-de-verdad',
-      savedEmail: 'gus@ejemplo.dev',
+      savedUsername: 'gaguilar',
       savedPassword: 'secreta',
     );
 
@@ -162,8 +162,8 @@ void main() {
       expect(fuera.token, isNull);
       expect(fuera.user, isNull);
       expect(
-        fuera.savedEmail,
-        'gus@ejemplo.dev',
+        fuera.savedUsername,
+        'gaguilar',
         reason: 'el baúl se conserva salvo que se pida vaciarlo',
       );
     });
@@ -175,7 +175,7 @@ void main() {
         clearSavedCredentials: true,
       );
       expect(fuera.savedPassword, isNull);
-      expect(fuera.savedEmail, isNull);
+      expect(fuera.savedUsername, isNull);
     });
 
     test('sin los clear*, pasar null conserva el valor anterior', () {

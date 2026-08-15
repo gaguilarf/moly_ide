@@ -83,12 +83,12 @@ async def resolver_actor(
     if not payload or "sub" not in payload:
         return None
 
-    resultado = await db.execute(select(User).where(User.email == payload["sub"]))
+    resultado = await db.execute(select(User).where(User.username == payload["sub"]))
     usuario = resultado.scalar_one_or_none()
     if not usuario or not usuario.is_active:
         return None
 
-    return Actor(tipo="usuario", nombre=usuario.email, usuario=usuario)
+    return Actor(tipo="usuario", nombre=usuario.username, usuario=usuario)
 
 
 async def require_actor(

@@ -14,7 +14,7 @@ class AuthState {
   final AuthUserModel? user;
   final String? token;
   final String currentServerUrl;
-  final String? savedEmail;
+  final String? savedUsername;
   final String? savedPassword;
   final bool rememberCredentials;
   final String? errorMessage;
@@ -24,7 +24,7 @@ class AuthState {
     this.user,
     this.token,
     this.currentServerUrl = 'http://192.168.0.109:8000',
-    this.savedEmail,
+    this.savedUsername,
     this.savedPassword,
     this.rememberCredentials = true,
     this.errorMessage,
@@ -35,7 +35,7 @@ class AuthState {
     AuthUserModel? user,
     String? token,
     String? currentServerUrl,
-    String? savedEmail,
+    String? savedUsername,
     String? savedPassword,
     bool? rememberCredentials,
     String? errorMessage,
@@ -50,9 +50,9 @@ class AuthState {
       user: clearSession ? null : (user ?? this.user),
       token: clearSession ? null : (token ?? this.token),
       currentServerUrl: currentServerUrl ?? this.currentServerUrl,
-      savedEmail: clearSavedCredentials
+      savedUsername: clearSavedCredentials
           ? null
-          : (savedEmail ?? this.savedEmail),
+          : (savedUsername ?? this.savedUsername),
       savedPassword: clearSavedCredentials
           ? null
           : (savedPassword ?? this.savedPassword),
