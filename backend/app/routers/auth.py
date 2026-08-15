@@ -11,7 +11,7 @@ from backend.app.services.auth_service import (
     create_access_token,
     decode_access_token,
 )
-from backend.app.security import Actor, require_actor
+from backend.app.security import Actor, require_admin
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -50,11 +50,14 @@ async def get_current_user(
 async def register(
     payload: UserRegister,
     db: AsyncSession = Depends(get_db),
-    actor: Actor = Depends(require_actor),
+    actor: Actor = Depends(require_admin),
 ):
-    """Alta de usuario. Exige credencial: un registro abierto en una API que
-    controla el VPS significa que cualquiera en la red se hace una cuenta y
-    entra. El primer usuario se siembra con `migrations/seed_user.py`."""
+    """Alta de usuario. Exige ser ADMINISTRADOR, no solo estar autenticado.
+
+    Con `require_actor` a secas, cualquier cuenta —incluida una `viewer`— o el
+    token de agente compartido podia crearse una cuenta `admin` mandando
+    `{"role": "admin"}`, que es escalada de privilegios por la puerta principal.
+    El primer usuario se siembra con `migrations/seed_user.py`."""
     res = await db.execute(select(User).where(User.email == payload.email.lower().strip()))
     if res.scalar_one_or_none():
         raise HTTPException(

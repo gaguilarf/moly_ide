@@ -1,6 +1,7 @@
 import asyncssh
 import asyncio
 import logging
+import posixpath
 import shlex
 from typing import List, Dict, Optional, Any
 from datetime import datetime, timezone
@@ -217,9 +218,25 @@ class SSHInspectorService:
         return files
 
     async def read_env_file_safe(self, file_path: str) -> Optional[str]:
-        """Lee el contenido de un archivo .env o configuración en modo estrictamente solo lectura."""
+        """Lee un fichero de configuración del VPS, en solo lectura.
+
+        Comprobar la EXTENSION no protege de nada: el comando corre como root en
+        el VPS de produccion, asi que cualquier ruta acabada en .env o .conf
+        servia las credenciales del SGA, de tIAcher, del panel, de MySQL o de
+        Redis a cualquiera que estuviera autenticado. Lo que decide es el
+        DIRECTORIO, y por eso hay una lista cerrada.
+        """
         if not file_path.endswith((".env", ".env.local", ".env.example", ".env.production", ".cnf", ".conf", ".yaml", ".yml", ".json")):
             raise ValueError("Solo se permite la lectura de archivos de configuración y entorno.")
+
+        # normpath resuelve los .. ANTES de comparar; si se comparara la ruta
+        # cruda, "/root/sga_brittany_back/../../etc/shadow.conf" pasaria.
+        ruta = posixpath.normpath(file_path)
+        if not any(ruta == raiz or ruta.startswith(raiz.rstrip("/") + "/")
+                   for raiz in settings.explorador_raices):
+            raise ValueError(
+                "Ruta fuera de los directorios permitidos para el explorador."
+            )
 
         cmd = f"cat {shlex.quote(file_path)}"
         return await self._execute_remote_command(

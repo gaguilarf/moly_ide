@@ -1,8 +1,11 @@
+import os
+
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import List
 from uuid import UUID
+from backend.app.config import settings
 from backend.app.database import get_db, AsyncSessionLocal
 from backend.app.models.claude import ClaudeAccount, ClaudeTask, ClaudeAccountStatus
 from backend.app.schemas.claude import (
@@ -63,6 +66,19 @@ async def list_tasks(db: AsyncSession = Depends(get_db)):
 
 @router.post("/tasks", response_model=ClaudeTaskOut)
 async def create_and_run_task(payload: ClaudeTaskCreate, db: AsyncSession = Depends(get_db)):
+    # Sin esto, target_repo era una ruta libre y el agente arrancaba donde le
+    # dijeran: bastaba pedir "/home/jetson" y un prompt que leyera
+    # ~/.ssh/id_ed25519_claude_deploy para sacar por el WebSocket la clave con
+    # la que este backend entra como root al VPS de produccion.
+    if payload.target_repo:
+        base = os.path.realpath(settings.REPOS_BASE_DIR)
+        destino = os.path.realpath(payload.target_repo)
+        if destino != base and not destino.startswith(base + os.sep):
+            raise HTTPException(
+                status_code=400,
+                detail=f"target_repo debe estar dentro de {settings.REPOS_BASE_DIR}",
+            )
+
     task = ClaudeTask(
         ticket_id=payload.ticket_id,
         title=payload.title,

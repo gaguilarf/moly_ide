@@ -179,7 +179,10 @@ async def add_ticket_note(
 
     event = TicketEvent(
         ticket_id=ticket.id,
-        actor=payload.actor or actor.nombre,
+        # El actor sale de la credencial, NUNCA del cuerpo: si se pudiera
+        # mandar por parametro, cualquiera cerraria un ticket firmando con
+        # el nombre de otro y el historial dejaria de probar nada.
+        actor=actor.nombre,
         kind=payload.kind,
         note=payload.note.strip(),
     )
@@ -227,7 +230,7 @@ async def transition_ticket(
 
     event = TicketEvent(
         ticket_id=ticket.id,
-        actor=payload.actor or actor.nombre,
+        actor=actor.nombre,  # de la credencial, no del cuerpo
         kind=EventKind.transicion,
         from_status=old_status,
         to_status=new_status,

@@ -103,6 +103,26 @@ async def require_actor(
     return actor
 
 
+async def require_admin(actor: Actor = Depends(require_actor)) -> Actor:
+    """Para lo que reparte privilegio. Tener credencial no es tener permiso.
+
+    Deja fuera a los agentes a propósito: el token de servicio lo comparten
+    varios automatismos, así que no identifica a una persona y no puede ser la
+    llave de las operaciones que crean cuentas.
+    """
+    if actor.tipo != "usuario" or actor.usuario is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Esta operación exige una sesión de usuario, no un token de agente.",
+        )
+    if actor.usuario.role.value != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Esta operación exige rol de administrador.",
+        )
+    return actor
+
+
 async def actor_de_websocket(websocket: WebSocket) -> Optional[Actor]:
     """Igual que `require_actor`, pero para un WebSocket.
 

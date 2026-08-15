@@ -39,12 +39,25 @@ class Settings(BaseSettings):
     DOCS_DIR: str = os.getenv("DOCS_DIR", "/home/jetson/docs_brittanygroup")
     REPOS_BASE_DIR: str = os.getenv("REPOS_BASE_DIR", "/home/jetson/workspace")
 
+    # Directorios del VPS que el explorador puede leer, separados por comas.
+    # Es una lista CERRADA porque el comando corre como root en produccion:
+    # comprobar solo la extension del fichero dejaba servir el .env del SGA, el
+    # del panel, la config de MySQL o la de Redis a cualquiera autenticado.
+    EXPLORADOR_RAICES: str = os.getenv(
+        "EXPLORADOR_RAICES",
+        "/root/sga_brittany_back,/root/tiacherback,/root/academico_brittanygroup_back,/panel_brittanygroup",
+    )
+
     # Claude CLI paths
     CLAUDE_CLI_PATH: str = os.getenv("CLAUDE_CLI_PATH", "claude")
 
     @property
     def cors_origins(self) -> List[str]:
         return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
+
+    @property
+    def explorador_raices(self) -> List[str]:
+        return [r.strip() for r in self.EXPLORADOR_RAICES.split(",") if r.strip()]
 
     class Config:
         env_file = ".env"
