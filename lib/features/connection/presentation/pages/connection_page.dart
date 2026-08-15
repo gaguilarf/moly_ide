@@ -7,7 +7,6 @@ import 'package:moly_ide/core/update/update_dialog.dart';
 import 'package:moly_ide/core/update/update_service.dart';
 import 'package:moly_ide/features/connection/presentation/cubit/connection_cubit.dart';
 import 'package:moly_ide/features/connection/presentation/cubit/connection_state.dart';
-import 'package:moly_ide/features/ide_dashboard/presentation/pages/ide_dashboard_page.dart';
 
 class ConnectionPage extends StatefulWidget {
   const ConnectionPage({super.key});
@@ -80,11 +79,11 @@ class _ConnectionPageState extends State<ConnectionPage> {
   void _submitForm(BuildContext context) {
     if (_formKey.currentState?.validate() ?? false) {
       context.read<ConnectionCubit>().connect(
-            host: _hostController.text.trim(),
-            portStr: _portController.text.trim(),
-            username: _usernameController.text.trim(),
-            password: _passwordController.text,
-          );
+        host: _hostController.text.trim(),
+        portStr: _portController.text.trim(),
+        username: _usernameController.text.trim(),
+        password: _passwordController.text,
+      );
     }
   }
 
@@ -98,12 +97,6 @@ class _ConnectionPageState extends State<ConnectionPage> {
             _portController.text = state.port;
             _usernameController.text = state.username;
             _passwordController.text = state.password;
-          } else if (state is ConnectionSuccess) {
-            // Navigate to IDE Dashboard
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (context) => const IDEDashboardPage()),
-            );
           } else if (state is ConnectionFailure) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -119,7 +112,10 @@ class _ConnectionPageState extends State<ConnectionPage> {
                     Expanded(
                       child: Text(
                         'Conexión fallida: ${state.errorMessage}',
-                        style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.w500),
+                        style: GoogleFonts.outfit(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                     ),
                   ],
@@ -135,7 +131,10 @@ class _ConnectionPageState extends State<ConnectionPage> {
           child: SafeArea(
             child: Center(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24.0,
+                  vertical: 16.0,
+                ),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -155,7 +154,9 @@ class _ConnectionPageState extends State<ConnectionPage> {
                               ),
                               boxShadow: [
                                 BoxShadow(
-                                  color: AppTheme.primaryPurple.withOpacity(0.2),
+                                  color: AppTheme.primaryPurple.withOpacity(
+                                    0.2,
+                                  ),
                                   blurRadius: 20,
                                   spreadRadius: 2,
                                 ),
@@ -175,9 +176,15 @@ class _ConnectionPageState extends State<ConnectionPage> {
                               fontWeight: FontWeight.bold,
                               letterSpacing: 1.2,
                               foreground: Paint()
-                                ..shader = AppTheme.purpleBlueGradient.createShader(
-                                  const Rect.fromLTWH(0.0, 0.0, 200.0, 70.0),
-                                ),
+                                ..shader = AppTheme.purpleBlueGradient
+                                    .createShader(
+                                      const Rect.fromLTWH(
+                                        0.0,
+                                        0.0,
+                                        200.0,
+                                        70.0,
+                                      ),
+                                    ),
                             ),
                           ),
                           const SizedBox(height: 6),
@@ -195,16 +202,23 @@ class _ConnectionPageState extends State<ConnectionPage> {
                     BlocBuilder<ConnectionCubit, ConnectionState>(
                       builder: (context, state) {
                         final isLoading = state is ConnectionLoading;
-                        final showForm = _showForm || state.savedConnections.isEmpty;
+                        final showForm =
+                            _showForm || state.savedConnections.isEmpty;
 
                         if (isLoading) {
                           return Container(
                             key: const ValueKey('loading_view'),
-                            padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 24),
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 48,
+                              horizontal: 24,
+                            ),
                             decoration: BoxDecoration(
                               color: AppTheme.surface,
                               borderRadius: AppTheme.borderRadius,
-                              border: Border.all(color: AppTheme.border, width: 1.2),
+                              border: Border.all(
+                                color: AppTheme.border,
+                                width: 1.2,
+                              ),
                               boxShadow: [
                                 BoxShadow(
                                   color: Colors.black.withOpacity(0.3),
@@ -227,7 +241,10 @@ class _ConnectionPageState extends State<ConnectionPage> {
                                         height: 60,
                                         child: CircularProgressIndicator(
                                           strokeWidth: 3,
-                                          valueColor: AlwaysStoppedAnimation<Color>(AppTheme.accentBlue),
+                                          valueColor:
+                                              AlwaysStoppedAnimation<Color>(
+                                                AppTheme.accentBlue,
+                                              ),
                                         ),
                                       ),
                                       const Icon(
@@ -266,12 +283,13 @@ class _ConnectionPageState extends State<ConnectionPage> {
                         // Otherwise show switcher between Form or List
                         return AnimatedSwitcher(
                           duration: const Duration(milliseconds: 300),
-                          transitionBuilder: (Widget child, Animation<double> animation) {
-                            return FadeTransition(
-                              opacity: animation,
-                              child: child,
-                            );
-                          },
+                          transitionBuilder:
+                              (Widget child, Animation<double> animation) {
+                                return FadeTransition(
+                                  opacity: animation,
+                                  child: child,
+                                );
+                              },
                           child: showForm
                               ? Container(
                                   key: const ValueKey('form_view'),
@@ -279,7 +297,10 @@ class _ConnectionPageState extends State<ConnectionPage> {
                                   decoration: BoxDecoration(
                                     color: AppTheme.surface,
                                     borderRadius: AppTheme.borderRadius,
-                                    border: Border.all(color: AppTheme.border, width: 1.2),
+                                    border: Border.all(
+                                      color: AppTheme.border,
+                                      width: 1.2,
+                                    ),
                                     boxShadow: [
                                       BoxShadow(
                                         color: Colors.black.withOpacity(0.3),
@@ -291,19 +312,24 @@ class _ConnectionPageState extends State<ConnectionPage> {
                                   child: Form(
                                     key: _formKey,
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.stretch,
                                       children: [
                                         Row(
                                           children: [
-                                            if (state.savedConnections.isNotEmpty) ...[
+                                            if (state
+                                                .savedConnections
+                                                .isNotEmpty) ...[
                                               IconButton(
                                                 icon: const Icon(
-                                                  Icons.arrow_back_ios_new_rounded,
+                                                  Icons
+                                                      .arrow_back_ios_new_rounded,
                                                   size: 18,
                                                   color: AppTheme.accentBlue,
                                                 ),
                                                 padding: EdgeInsets.zero,
-                                                constraints: const BoxConstraints(),
+                                                constraints:
+                                                    const BoxConstraints(),
                                                 onPressed: () {
                                                   setState(() {
                                                     _showForm = false;
@@ -317,7 +343,8 @@ class _ConnectionPageState extends State<ConnectionPage> {
                                                 height: 18,
                                                 decoration: BoxDecoration(
                                                   color: AppTheme.accentBlue,
-                                                  borderRadius: BorderRadius.circular(2),
+                                                  borderRadius:
+                                                      BorderRadius.circular(2),
                                                 ),
                                               ),
                                               const SizedBox(width: 8),
@@ -337,7 +364,8 @@ class _ConnectionPageState extends State<ConnectionPage> {
 
                                         // Host and Port Inputs
                                         Row(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
                                           children: [
                                             Expanded(
                                               flex: 3,
@@ -345,11 +373,18 @@ class _ConnectionPageState extends State<ConnectionPage> {
                                                 controller: _hostController,
                                                 decoration: const InputDecoration(
                                                   labelText: 'Host / IP',
-                                                  hintText: 'vps.ejemplo.com o 192.168.1.10',
-                                                  prefixIcon: Icon(Icons.dns, size: 20, color: AppTheme.textSecondary),
+                                                  hintText:
+                                                      'vps.ejemplo.com o 192.168.1.10',
+                                                  prefixIcon: Icon(
+                                                    Icons.dns,
+                                                    size: 20,
+                                                    color:
+                                                        AppTheme.textSecondary,
+                                                  ),
                                                 ),
                                                 validator: (value) {
-                                                  if (value == null || value.trim().isEmpty) {
+                                                  if (value == null ||
+                                                      value.trim().isEmpty) {
                                                     return 'Requerido';
                                                   }
                                                   return null;
@@ -361,16 +396,20 @@ class _ConnectionPageState extends State<ConnectionPage> {
                                               flex: 1,
                                               child: TextFormField(
                                                 controller: _portController,
-                                                keyboardType: TextInputType.number,
-                                                decoration: const InputDecoration(
-                                                  labelText: 'Puerto',
-                                                  hintText: '22',
-                                                ),
+                                                keyboardType:
+                                                    TextInputType.number,
+                                                decoration:
+                                                    const InputDecoration(
+                                                      labelText: 'Puerto',
+                                                      hintText: '22',
+                                                    ),
                                                 validator: (value) {
-                                                  if (value == null || value.trim().isEmpty) {
+                                                  if (value == null ||
+                                                      value.trim().isEmpty) {
                                                     return 'Requerido';
                                                   }
-                                                  if (int.tryParse(value) == null) {
+                                                  if (int.tryParse(value) ==
+                                                      null) {
                                                     return 'Inválido';
                                                   }
                                                   return null;
@@ -387,10 +426,15 @@ class _ConnectionPageState extends State<ConnectionPage> {
                                           decoration: const InputDecoration(
                                             labelText: 'Usuario',
                                             hintText: 'root, ubuntu, etc.',
-                                            prefixIcon: Icon(Icons.person, size: 20, color: AppTheme.textSecondary),
+                                            prefixIcon: Icon(
+                                              Icons.person,
+                                              size: 20,
+                                              color: AppTheme.textSecondary,
+                                            ),
                                           ),
                                           validator: (value) {
-                                            if (value == null || value.trim().isEmpty) {
+                                            if (value == null ||
+                                                value.trim().isEmpty) {
                                               return 'Por favor ingresa el usuario';
                                             }
                                             return null;
@@ -405,22 +449,30 @@ class _ConnectionPageState extends State<ConnectionPage> {
                                           decoration: InputDecoration(
                                             labelText: 'Contraseña (SSH)',
                                             hintText: '••••••••',
-                                            prefixIcon: const Icon(Icons.lock, size: 20, color: AppTheme.textSecondary),
+                                            prefixIcon: const Icon(
+                                              Icons.lock,
+                                              size: 20,
+                                              color: AppTheme.textSecondary,
+                                            ),
                                             suffixIcon: IconButton(
                                               icon: Icon(
-                                                _isPasswordVisible ? Icons.visibility_off : Icons.visibility,
+                                                _isPasswordVisible
+                                                    ? Icons.visibility_off
+                                                    : Icons.visibility,
                                                 size: 20,
                                                 color: AppTheme.textSecondary,
                                               ),
                                               onPressed: () {
                                                 setState(() {
-                                                  _isPasswordVisible = !_isPasswordVisible;
+                                                  _isPasswordVisible =
+                                                      !_isPasswordVisible;
                                                 });
                                               },
                                             ),
                                           ),
                                           validator: (value) {
-                                            if (value == null || value.isEmpty) {
+                                            if (value == null ||
+                                                value.isEmpty) {
                                               return 'Por favor ingresa la contraseña';
                                             }
                                             return null;
@@ -431,22 +483,29 @@ class _ConnectionPageState extends State<ConnectionPage> {
                                         // Connect Button
                                         Container(
                                           decoration: BoxDecoration(
-                                            gradient: AppTheme.purpleBlueGradient,
+                                            gradient:
+                                                AppTheme.purpleBlueGradient,
                                             borderRadius: AppTheme.borderRadius,
                                             boxShadow: [
                                               BoxShadow(
-                                                color: AppTheme.primaryPurple.withOpacity(0.3),
+                                                color: AppTheme.primaryPurple
+                                                    .withOpacity(0.3),
                                                 blurRadius: 12,
                                                 offset: const Offset(0, 4),
                                               ),
                                             ],
                                           ),
                                           child: ElevatedButton(
-                                            onPressed: () => _submitForm(context),
+                                            onPressed: () =>
+                                                _submitForm(context),
                                             style: ElevatedButton.styleFrom(
-                                              backgroundColor: Colors.transparent,
+                                              backgroundColor:
+                                                  Colors.transparent,
                                               shadowColor: Colors.transparent,
-                                              padding: const EdgeInsets.symmetric(vertical: 16),
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    vertical: 16,
+                                                  ),
                                             ),
                                             child: const Text(
                                               'CONECTAR AL SERVIDOR',
@@ -468,7 +527,10 @@ class _ConnectionPageState extends State<ConnectionPage> {
                                   decoration: BoxDecoration(
                                     color: AppTheme.surface,
                                     borderRadius: AppTheme.borderRadius,
-                                    border: Border.all(color: AppTheme.border, width: 1.2),
+                                    border: Border.all(
+                                      color: AppTheme.border,
+                                      width: 1.2,
+                                    ),
                                     boxShadow: [
                                       BoxShadow(
                                         color: Colors.black.withOpacity(0.3),
@@ -478,7 +540,8 @@ class _ConnectionPageState extends State<ConnectionPage> {
                                     ],
                                   ),
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
                                     children: [
                                       Row(
                                         children: [
@@ -487,7 +550,8 @@ class _ConnectionPageState extends State<ConnectionPage> {
                                             height: 18,
                                             decoration: BoxDecoration(
                                               color: AppTheme.primaryPurple,
-                                              borderRadius: BorderRadius.circular(2),
+                                              borderRadius:
+                                                  BorderRadius.circular(2),
                                             ),
                                           ),
                                           const SizedBox(width: 8),
@@ -505,18 +569,24 @@ class _ConnectionPageState extends State<ConnectionPage> {
                                       const SizedBox(height: 16),
                                       ListView.separated(
                                         shrinkWrap: true,
-                                        physics: const NeverScrollableScrollPhysics(),
-                                        itemCount: state.savedConnections.length,
-                                        separatorBuilder: (context, index) => const Divider(
-                                          color: AppTheme.divider,
-                                          height: 24,
-                                        ),
+                                        physics:
+                                            const NeverScrollableScrollPhysics(),
+                                        itemCount:
+                                            state.savedConnections.length,
+                                        separatorBuilder: (context, index) =>
+                                            const Divider(
+                                              color: AppTheme.divider,
+                                              height: 24,
+                                            ),
                                         itemBuilder: (context, index) {
-                                          final conn = state.savedConnections[index];
+                                          final conn =
+                                              state.savedConnections[index];
                                           return InkWell(
                                             borderRadius: AppTheme.borderRadius,
                                             onTap: () {
-                                              context.read<ConnectionCubit>().connect(
+                                              context
+                                                  .read<ConnectionCubit>()
+                                                  .connect(
                                                     host: conn.host,
                                                     portStr: conn.port,
                                                     username: conn.username,
@@ -524,41 +594,60 @@ class _ConnectionPageState extends State<ConnectionPage> {
                                                   );
                                             },
                                             child: Padding(
-                                              padding: const EdgeInsets.symmetric(vertical: 4.0),
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    vertical: 4.0,
+                                                  ),
                                               child: Row(
                                                 children: [
                                                   Container(
-                                                    padding: const EdgeInsets.all(10),
+                                                    padding:
+                                                        const EdgeInsets.all(
+                                                          10,
+                                                        ),
                                                     decoration: BoxDecoration(
-                                                      color: AppTheme.primaryPurple.withOpacity(0.1),
+                                                      color: AppTheme
+                                                          .primaryPurple
+                                                          .withOpacity(0.1),
                                                       shape: BoxShape.circle,
                                                     ),
                                                     child: const Icon(
                                                       Icons.dns_rounded,
-                                                      color: AppTheme.accentBlue,
+                                                      color:
+                                                          AppTheme.accentBlue,
                                                       size: 20,
                                                     ),
                                                   ),
                                                   const SizedBox(width: 12),
                                                   Expanded(
                                                     child: Column(
-                                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                                      crossAxisAlignment:
+                                                          CrossAxisAlignment
+                                                              .start,
                                                       children: [
                                                         Text(
                                                           '${conn.username}@${conn.host}',
-                                                          style: GoogleFonts.outfit(
-                                                            color: Colors.white,
-                                                            fontWeight: FontWeight.w600,
-                                                            fontSize: 14,
-                                                          ),
+                                                          style:
+                                                              GoogleFonts.outfit(
+                                                                color: Colors
+                                                                    .white,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w600,
+                                                                fontSize: 14,
+                                                              ),
                                                           maxLines: 1,
-                                                          overflow: TextOverflow.ellipsis,
+                                                          overflow: TextOverflow
+                                                              .ellipsis,
                                                         ),
-                                                        const SizedBox(height: 4),
+                                                        const SizedBox(
+                                                          height: 4,
+                                                        ),
                                                         Text(
                                                           'Puerto: ${conn.port}',
                                                           style: GoogleFonts.firaCode(
-                                                            color: AppTheme.textSecondary,
+                                                            color: AppTheme
+                                                                .textSecondary,
                                                             fontSize: 11,
                                                           ),
                                                         ),
@@ -566,45 +655,67 @@ class _ConnectionPageState extends State<ConnectionPage> {
                                                     ),
                                                   ),
                                                   Row(
-                                                    mainAxisSize: MainAxisSize.min,
+                                                    mainAxisSize:
+                                                        MainAxisSize.min,
                                                     children: [
                                                       IconButton(
                                                         icon: const Icon(
                                                           Icons.edit_rounded,
-                                                          color: AppTheme.accentBlue,
+                                                          color: AppTheme
+                                                              .accentBlue,
                                                           size: 20,
                                                         ),
-                                                        tooltip: 'Editar y Cargar',
+                                                        tooltip:
+                                                            'Editar y Cargar',
                                                         onPressed: () {
-                                                          _hostController.text = conn.host;
-                                                          _portController.text = conn.port;
-                                                          _usernameController.text = conn.username;
-                                                          _passwordController.text = conn.password;
+                                                          _hostController.text =
+                                                              conn.host;
+                                                          _portController.text =
+                                                              conn.port;
+                                                          _usernameController
+                                                                  .text =
+                                                              conn.username;
+                                                          _passwordController
+                                                                  .text =
+                                                              conn.password;
                                                           setState(() {
                                                             _showForm = true;
                                                           });
-                                                          ScaffoldMessenger.of(context).showSnackBar(
+                                                          ScaffoldMessenger.of(
+                                                            context,
+                                                          ).showSnackBar(
                                                             SnackBar(
                                                               content: Text(
                                                                 'Credenciales de ${conn.host} cargadas para editar.',
-                                                                style: GoogleFonts.outfit(),
+                                                                style:
+                                                                    GoogleFonts.outfit(),
                                                               ),
-                                                              duration: const Duration(seconds: 1),
+                                                              duration:
+                                                                  const Duration(
+                                                                    seconds: 1,
+                                                                  ),
                                                             ),
                                                           );
                                                         },
                                                       ),
                                                       IconButton(
                                                         icon: const Icon(
-                                                          Icons.delete_outline_rounded,
-                                                          color: Color(0xFFFF5252),
+                                                          Icons
+                                                              .delete_outline_rounded,
+                                                          color: Color(
+                                                            0xFFFF5252,
+                                                          ),
                                                           size: 20,
                                                         ),
                                                         tooltip: 'Eliminar',
                                                         onPressed: () {
                                                           context
-                                                              .read<ConnectionCubit>()
-                                                              .deleteConnection(conn);
+                                                              .read<
+                                                                ConnectionCubit
+                                                              >()
+                                                              .deleteConnection(
+                                                                conn,
+                                                              );
                                                         },
                                                       ),
                                                     ],
@@ -626,12 +737,22 @@ class _ConnectionPageState extends State<ConnectionPage> {
                                             _showForm = true;
                                           });
                                         },
-                                        icon: const Icon(Icons.add_rounded, size: 20),
-                                        label: const Text('AGREGAR NUEVO SERVIDOR'),
+                                        icon: const Icon(
+                                          Icons.add_rounded,
+                                          size: 20,
+                                        ),
+                                        label: const Text(
+                                          'AGREGAR NUEVO SERVIDOR',
+                                        ),
                                         style: OutlinedButton.styleFrom(
-                                          side: const BorderSide(color: AppTheme.accentBlue, width: 1.5),
+                                          side: const BorderSide(
+                                            color: AppTheme.accentBlue,
+                                            width: 1.5,
+                                          ),
                                           foregroundColor: AppTheme.accentBlue,
-                                          padding: const EdgeInsets.symmetric(vertical: 16),
+                                          padding: const EdgeInsets.symmetric(
+                                            vertical: 16,
+                                          ),
                                         ),
                                       ),
                                     ],
@@ -670,7 +791,8 @@ class _PulsingCircle extends StatefulWidget {
   State<_PulsingCircle> createState() => _PulsingCircleState();
 }
 
-class _PulsingCircleState extends State<_PulsingCircle> with SingleTickerProviderStateMixin {
+class _PulsingCircleState extends State<_PulsingCircle>
+    with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _animation;
 
@@ -681,9 +803,10 @@ class _PulsingCircleState extends State<_PulsingCircle> with SingleTickerProvide
       vsync: this,
       duration: const Duration(seconds: 2),
     )..repeat();
-    _animation = Tween<double>(begin: 0.8, end: 1.2).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
-    );
+    _animation = Tween<double>(
+      begin: 0.8,
+      end: 1.2,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
   }
 
   @override
