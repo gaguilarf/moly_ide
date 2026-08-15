@@ -25,6 +25,8 @@ from backend.app.schemas.ticket import (
     TicketProjectOut,
     SprintOut,
     SprintCreate,
+    SprintClose,
+    SprintCloseOut,
 )
 
 router = APIRouter(prefix="/tickets", tags=["Tickets & Sprints"])
@@ -69,11 +71,93 @@ async def list_sprints(db: AsyncSession = Depends(get_db)):
 
 @router.post("/sprints", response_model=SprintOut)
 async def create_sprint(payload: SprintCreate, db: AsyncSession = Depends(get_db)):
-    sprint = Sprint(**payload.model_dump())
+    datos = payload.model_dump()
+    # Solo puede haber un sprint activo: create_ticket elige el activo con
+    # `.first()`, asi que con dos el destino de los tickets nuevos depende del
+    # orden que devuelva la base.
+    if datos.get("status") == SprintStatus.activo:
+        await _desactivar_sprints_activos(db)
+    sprint = Sprint(**datos)
     db.add(sprint)
     await db.commit()
     await db.refresh(sprint)
     return sprint
+
+
+@router.post("/sprints/{sprint_id}/close", response_model=SprintCloseOut)
+async def close_sprint(
+    sprint_id: int,
+    payload: SprintClose,
+    db: AsyncSession = Depends(get_db),
+    actor: Actor = Depends(require_actor),
+):
+    """Cierra el sprint, abre el siguiente y le pasa lo que quedo sin terminar.
+
+    Cerrar sin arrastrar el trabajo pendiente lo dejaria en un sprint de solo
+    lectura: vivo, pero intocable. Cada traspaso queda como evento en el ticket,
+    que es lo unico que explica despues por que un ticket cambio de sprint.
+    """
+    sprint = await db.get(Sprint, sprint_id)
+    if not sprint:
+        raise HTTPException(status_code=404, detail=f"El sprint {sprint_id} no existe")
+    if sprint.status == SprintStatus.cerrado:
+        raise HTTPException(
+            status_code=409, detail=f"'{sprint.name}' ya esta cerrado."
+        )
+
+    ahora = datetime.now(timezone.utc)
+    sprint.status = SprintStatus.cerrado
+    sprint.closed_at = ahora
+
+    await _desactivar_sprints_activos(db, excepto=sprint_id)
+    siguiente = Sprint(
+        name=payload.next_sprint_name or f"Sprint {sprint.id + 1}",
+        goal=payload.next_sprint_goal
+        or f"Continuacion de lo que quedo pendiente en {sprint.name}",
+        status=SprintStatus.activo,
+        start_date=payload.next_sprint_start_date or ahora.date(),
+        end_date=payload.next_sprint_end_date,
+    )
+    db.add(siguiente)
+    await db.flush()
+
+    pendientes = await db.execute(
+        select(Ticket).where(
+            Ticket.sprint_id == sprint_id,
+            Ticket.status.notin_([TicketStatus.hecho, TicketStatus.descartado]),
+        )
+    )
+    arrastrados = 0
+    for ticket in pendientes.scalars().all():
+        ticket.sprint_id = siguiente.id
+        db.add(
+            TicketEvent(
+                ticket_id=ticket.id,
+                actor=actor.nombre,
+                kind=EventKind.transicion,
+                from_status=ticket.status.value,
+                to_status=ticket.status.value,
+                note=f"Transferido de {sprint.name} a {siguiente.name} al cerrar el sprint",
+            )
+        )
+        arrastrados += 1
+
+    await db.commit()
+    await db.refresh(sprint)
+    await db.refresh(siguiente)
+    return SprintCloseOut(
+        closed=SprintOut.model_validate(sprint),
+        next=SprintOut.model_validate(siguiente),
+        carried_over=arrastrados,
+    )
+
+
+async def _desactivar_sprints_activos(db: AsyncSession, excepto: int | None = None) -> None:
+    """Deja en 'planificado' los sprints activos, para que solo quede uno."""
+    query = update(Sprint).where(Sprint.status == SprintStatus.activo)
+    if excepto is not None:
+        query = query.where(Sprint.id != excepto)
+    await db.execute(query.values(status=SprintStatus.planificado))
 
 
 @router.get("", response_model=List[TicketOut])

@@ -13,13 +13,57 @@ class TicketProjectModel {
     required this.nextNumber,
   });
 
-  factory TicketProjectModel.fromJson(Map<String, dynamic> json) => TicketProjectModel(
+  factory TicketProjectModel.fromJson(Map<String, dynamic> json) =>
+      TicketProjectModel(
         id: json['id'] ?? 0,
         key: json['key'] ?? '',
         name: json['name'] ?? '',
         targetServer: json['target_server'],
         nextNumber: json['next_number'] ?? 1,
       );
+}
+
+/// Sprint del tablero. Las fechas llegan como ISO y se muestran tal cual
+/// (solo la parte de fecha), sin convertir zonas: son fechas de calendario.
+class SprintModel {
+  final int id;
+  final String name;
+  final String? goal;
+  final String status; // planificado | activo | cerrado
+  final String? startDate;
+  final String? endDate;
+
+  SprintModel({
+    required this.id,
+    required this.name,
+    this.goal,
+    required this.status,
+    this.startDate,
+    this.endDate,
+  });
+
+  bool get isActivo => status == 'activo';
+
+  /// Un sprint cerrado es solo lectura: el backend rechaza transiciones y notas
+  /// de sus tickets (409), así que la pantalla lo avisa antes de intentarlo.
+  bool get isCerrado => status == 'cerrado';
+
+  String get periodo {
+    if (startDate == null) return '';
+    final fin = endDate != null ? _soloFecha(endDate!) : 'en curso';
+    return '${_soloFecha(startDate!)} — $fin';
+  }
+
+  static String _soloFecha(String iso) => iso.split('T').first;
+
+  factory SprintModel.fromJson(Map<String, dynamic> json) => SprintModel(
+    id: json['id'] ?? 0,
+    name: json['name'] ?? '',
+    goal: json['goal'],
+    status: json['status'] ?? 'planificado',
+    startDate: json['start_date'],
+    endDate: json['end_date'],
+  );
 }
 
 class TicketEventModel {
@@ -43,7 +87,8 @@ class TicketEventModel {
     this.note,
   });
 
-  factory TicketEventModel.fromJson(Map<String, dynamic> json) => TicketEventModel(
+  factory TicketEventModel.fromJson(Map<String, dynamic> json) =>
+      TicketEventModel(
         id: json['id'] ?? 0,
         ticketId: json['ticket_id'] ?? 0,
         at: json['at'] ?? '',
@@ -101,28 +146,29 @@ class TicketModel {
   });
 
   factory TicketModel.fromJson(Map<String, dynamic> json) => TicketModel(
-        id: json['id'] ?? 0,
-        projectId: json['project_id'] ?? 0,
-        sprintId: json['sprint_id'],
-        number: json['number'] ?? 0,
-        code: json['code'] ?? '',
-        title: json['title'] ?? '',
-        description: json['description'],
-        plan: json['plan'],
-        type: json['type'] ?? 'feature',
-        area: json['area'],
-        priority: json['priority'] ?? 'media',
-        status: json['status'] ?? 'backlog',
-        assignee: json['assignee'],
-        reporter: json['reporter'] ?? '',
-        source: json['source'] ?? 'manual',
-        externalRef: json['external_ref'],
-        createdAt: json['created_at'] ?? '',
-        updatedAt: json['updated_at'] ?? '',
-        resolvedAt: json['resolved_at'],
-        events: (json['events'] as List<dynamic>?)
-                ?.map((e) => TicketEventModel.fromJson(e))
-                .toList() ??
-            [],
-      );
+    id: json['id'] ?? 0,
+    projectId: json['project_id'] ?? 0,
+    sprintId: json['sprint_id'],
+    number: json['number'] ?? 0,
+    code: json['code'] ?? '',
+    title: json['title'] ?? '',
+    description: json['description'],
+    plan: json['plan'],
+    type: json['type'] ?? 'feature',
+    area: json['area'],
+    priority: json['priority'] ?? 'media',
+    status: json['status'] ?? 'backlog',
+    assignee: json['assignee'],
+    reporter: json['reporter'] ?? '',
+    source: json['source'] ?? 'manual',
+    externalRef: json['external_ref'],
+    createdAt: json['created_at'] ?? '',
+    updatedAt: json['updated_at'] ?? '',
+    resolvedAt: json['resolved_at'],
+    events:
+        (json['events'] as List<dynamic>?)
+            ?.map((e) => TicketEventModel.fromJson(e))
+            .toList() ??
+        [],
+  );
 }

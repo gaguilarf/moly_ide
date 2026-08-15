@@ -5,54 +5,17 @@ import 'package:moly_ide/core/theme/app_theme.dart';
 import 'package:moly_ide/features/tickets/data/models/ticket_model.dart';
 import 'package:moly_ide/features/tickets/presentation/cubit/tickets_cubit.dart';
 import 'package:moly_ide/features/claude_agent/presentation/cubit/claude_cubit.dart';
+import 'package:moly_ide/features/tickets/presentation/ticket_catalog.dart';
 
 class TicketDetailPage extends StatelessWidget {
   final TicketModel ticket;
 
   const TicketDetailPage({super.key, required this.ticket});
 
-  Color _getPriorityColor(String priority) {
-    switch (priority.toLowerCase()) {
-      case 'critica':
-        return const Color(0xFFFF3366);
-      case 'alta':
-        return const Color(0xFFFF9900);
-      case 'media':
-        return const Color(0xFF00E5FF);
-      case 'baja':
-      default:
-        return const Color(0xFF00FF66);
-    }
-  }
-
-  Color _getStatusColor(String status) {
-    switch (status.toLowerCase()) {
-      case 'backlog':
-        return const Color(0xFF9E9E9E);
-      case 'desarrollo':
-        return const Color(0xFF00E5FF);
-      case 'pruebas':
-        return const Color(0xFFFF9900);
-      case 'revision':
-        return const Color(0xFF9E00FF);
-      case 'hecho':
-        return const Color(0xFF00FF66);
-      case 'descartado':
-        return const Color(0xFFFF3366);
-      default:
-        return Colors.white;
-    }
-  }
-
   void _showTransitionDialog(BuildContext context) {
-    final nextStatuses = [
-      'backlog',
-      'desarrollo',
-      'pruebas',
-      'revision',
-      'hecho',
-      'descartado',
-    ].where((s) => s != ticket.status).toList();
+    // Solo los destinos que el backend acepta desde el estado actual.
+    final nextStatuses = kTicketTransitions[ticket.status] ?? const <String>[];
+    if (nextStatuses.isEmpty) return;
 
     String selected = nextStatuses.first;
     final noteController = TextEditingController();
@@ -62,16 +25,30 @@ class TicketDetailPage extends StatelessWidget {
       builder: (dialContext) => StatefulBuilder(
         builder: (context, setDialState) => AlertDialog(
           backgroundColor: AppTheme.surface,
-          title: Text('Mover Estado de ${ticket.code}', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: Colors.white)),
+          title: Text(
+            'Mover Estado de ${ticket.code}',
+            style: GoogleFonts.outfit(
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               DropdownButtonFormField<String>(
-                value: selected,
+                initialValue: selected,
                 dropdownColor: AppTheme.surfaceLight,
                 decoration: const InputDecoration(labelText: 'Nuevo Estado'),
                 items: nextStatuses
-                    .map((s) => DropdownMenuItem(value: s, child: Text(s.toUpperCase(), style: GoogleFonts.firaCode(fontSize: 13))))
+                    .map(
+                      (s) => DropdownMenuItem(
+                        value: s,
+                        child: Text(
+                          (kStatusLabel[s] ?? s).toUpperCase(),
+                          style: GoogleFonts.firaCode(fontSize: 13),
+                        ),
+                      ),
+                    )
                     .toList(),
                 onChanged: (val) {
                   if (val != null) setDialState(() => selected = val);
@@ -81,10 +58,17 @@ class TicketDetailPage extends StatelessWidget {
               TextField(
                 controller: noteController,
                 style: const TextStyle(color: Colors.white),
-                decoration: const InputDecoration(
-                  labelText: 'Nota de transición',
+                decoration: InputDecoration(
+                  labelText: selected == 'hecho'
+                      ? 'Nota de cierre (obligatoria)'
+                      : 'Nota de transición',
                   hintText: 'Ej. Tests unitarios pasados...',
+                  errorText:
+                      selected == 'hecho' && noteController.text.trim().isEmpty
+                      ? 'Para cerrar hace falta decir qué pasó: tests, commit o rama.'
+                      : null,
                 ),
+                onChanged: (_) => setDialState(() {}),
               ),
             ],
           ),
@@ -94,16 +78,25 @@ class TicketDetailPage extends StatelessWidget {
               child: const Text('Cancelar'),
             ),
             ElevatedButton(
-              onPressed: () {
-                Navigator.pop(dialContext);
-                context.read<TicketsCubit>().transitionTicket(
-                      code: ticket.code,
-                      toStatus: selected,
-                      note: noteController.text.trim().isNotEmpty ? noteController.text.trim() : null,
-                    );
-                Navigator.pop(context); // Volver a la lista
-              },
-              style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primaryPurple),
+              // El backend exige nota de cierre para 'hecho' (422). Sin este
+              // freno el ticket parecía cerrarse y volvía a su estado al recargar.
+              onPressed:
+                  selected == 'hecho' && noteController.text.trim().isEmpty
+                  ? null
+                  : () {
+                      Navigator.pop(dialContext);
+                      context.read<TicketsCubit>().transitionTicket(
+                        code: ticket.code,
+                        toStatus: selected,
+                        note: noteController.text.trim().isNotEmpty
+                            ? noteController.text.trim()
+                            : null,
+                      );
+                      Navigator.pop(context); // Volver a la lista
+                    },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.primaryPurple,
+              ),
               child: const Text('Confirmar'),
             ),
           ],
@@ -118,10 +111,16 @@ class TicketDetailPage extends StatelessWidget {
       backgroundColor: AppTheme.background,
       appBar: AppBar(
         backgroundColor: AppTheme.surface,
-        title: Text(ticket.code, style: GoogleFonts.firaCode(fontWeight: FontWeight.bold)),
+        title: Text(
+          ticket.code,
+          style: GoogleFonts.firaCode(fontWeight: FontWeight.bold),
+        ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.swap_horiz_rounded, color: AppTheme.accentBlue),
+            icon: const Icon(
+              Icons.swap_horiz_rounded,
+              color: AppTheme.accentBlue,
+            ),
             tooltip: 'Cambiar Estado',
             onPressed: () => _showTransitionDialog(context),
           ),
@@ -136,49 +135,67 @@ class TicketDetailPage extends StatelessWidget {
             Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
-                    color: _getStatusColor(ticket.status).withOpacity(0.15),
+                    color: statusColor(ticket.status).withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: _getStatusColor(ticket.status), width: 1),
+                    border: Border.all(
+                      color: statusColor(ticket.status),
+                      width: 1,
+                    ),
                   ),
                   child: Text(
                     ticket.status.toUpperCase(),
                     style: GoogleFonts.firaCode(
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
-                      color: _getStatusColor(ticket.status),
+                      color: statusColor(ticket.status),
                     ),
                   ),
                 ),
                 const SizedBox(width: 8),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
-                    color: _getPriorityColor(ticket.priority).withOpacity(0.15),
+                    color: priorityColor(ticket.priority).withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: _getPriorityColor(ticket.priority), width: 1),
+                    border: Border.all(
+                      color: priorityColor(ticket.priority),
+                      width: 1,
+                    ),
                   ),
                   child: Text(
                     ticket.priority.toUpperCase(),
                     style: GoogleFonts.firaCode(
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
-                      color: _getPriorityColor(ticket.priority),
+                      color: priorityColor(ticket.priority),
                     ),
                   ),
                 ),
                 const Spacer(),
                 if (ticket.area != null)
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: AppTheme.surfaceLight,
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text(
                       'Área: ${ticket.area}',
-                      style: GoogleFonts.firaCode(fontSize: 11, color: AppTheme.textSecondary),
+                      style: GoogleFonts.firaCode(
+                        fontSize: 11,
+                        color: AppTheme.textSecondary,
+                      ),
                     ),
                   ),
               ],
@@ -187,7 +204,11 @@ class TicketDetailPage extends StatelessWidget {
             const SizedBox(height: 16),
             Text(
               ticket.title,
-              style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
+              style: GoogleFonts.outfit(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
             ),
 
             const SizedBox(height: 20),
@@ -200,7 +221,7 @@ class TicketDetailPage extends StatelessWidget {
                 borderRadius: BorderRadius.circular(12),
                 boxShadow: [
                   BoxShadow(
-                    color: AppTheme.primaryPurple.withOpacity(0.4),
+                    color: AppTheme.primaryPurple.withValues(alpha: 0.4),
                     blurRadius: 12,
                     offset: const Offset(0, 4),
                   ),
@@ -209,15 +230,19 @@ class TicketDetailPage extends StatelessWidget {
               child: ElevatedButton.icon(
                 onPressed: () {
                   // Lanzar resolución automática en el Jetson con Claude
-                  final prompt = 'Por favor resuelve el ticket ${ticket.code}: "${ticket.title}".\n\nDescripción: ${ticket.description ?? "Sin descripción"}\nPlan: ${ticket.plan ?? "Sin plan"}';
+                  final prompt =
+                      'Por favor resuelve el ticket ${ticket.code}: "${ticket.title}".\n\nDescripción: ${ticket.description ?? "Sin descripción"}\nPlan: ${ticket.plan ?? "Sin plan"}';
                   context.read<ClaudeCubit>().launchTask(
-                        title: 'Resolución ${ticket.code}',
-                        prompt: prompt,
-                        ticketId: ticket.id,
-                      );
+                    title: 'Resolución ${ticket.code}',
+                    prompt: prompt,
+                    ticketId: ticket.id,
+                  );
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text('Claude ha iniciado la resolución en el Jetson...', style: GoogleFonts.outfit()),
+                      content: Text(
+                        'Claude ha iniciado la resolución en el Jetson...',
+                        style: GoogleFonts.outfit(),
+                      ),
                       backgroundColor: AppTheme.primaryPurple,
                     ),
                   );
@@ -227,10 +252,17 @@ class TicketDetailPage extends StatelessWidget {
                   shadowColor: Colors.transparent,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                 ),
-                icon: const Icon(Icons.auto_awesome_rounded, color: Colors.white),
+                icon: const Icon(
+                  Icons.auto_awesome_rounded,
+                  color: Colors.white,
+                ),
                 label: Text(
                   'RESOLVER CON CLAUDE EN JETSON',
-                  style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.white),
+                  style: GoogleFonts.outfit(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                    color: Colors.white,
+                  ),
                 ),
               ),
             ),
@@ -238,7 +270,14 @@ class TicketDetailPage extends StatelessWidget {
             const SizedBox(height: 24),
 
             // Descripción
-            Text('Descripción', style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: AppTheme.accentBlue)),
+            Text(
+              'Descripción',
+              style: GoogleFonts.outfit(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: AppTheme.accentBlue,
+              ),
+            ),
             const SizedBox(height: 8),
             Container(
               width: double.infinity,
@@ -249,7 +288,9 @@ class TicketDetailPage extends StatelessWidget {
                 border: Border.all(color: AppTheme.border),
               ),
               child: Text(
-                ticket.description?.isNotEmpty == true ? ticket.description! : 'Sin descripción detallada.',
+                ticket.description?.isNotEmpty == true
+                    ? ticket.description!
+                    : 'Sin descripción detallada.',
                 style: GoogleFonts.outfit(color: Colors.white70, height: 1.4),
               ),
             ),
@@ -257,7 +298,14 @@ class TicketDetailPage extends StatelessWidget {
             const SizedBox(height: 16),
 
             // Plan
-            Text('Plan de Resolución', style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: AppTheme.primaryPurple)),
+            Text(
+              'Plan de Resolución',
+              style: GoogleFonts.outfit(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: AppTheme.primaryPurple,
+              ),
+            ),
             const SizedBox(height: 8),
             Container(
               width: double.infinity,
@@ -268,30 +316,51 @@ class TicketDetailPage extends StatelessWidget {
                 border: Border.all(color: AppTheme.border),
               ),
               child: Text(
-                ticket.plan?.isNotEmpty == true ? ticket.plan! : 'Sin plan registrado.',
-                style: GoogleFonts.firaCode(fontSize: 12, color: Colors.white70, height: 1.4),
+                ticket.plan?.isNotEmpty == true
+                    ? ticket.plan!
+                    : 'Sin plan registrado.',
+                style: GoogleFonts.firaCode(
+                  fontSize: 12,
+                  color: Colors.white70,
+                  height: 1.4,
+                ),
               ),
             ),
 
             const SizedBox(height: 24),
 
             // Historial de Eventos
-            Text('Historial de Eventos', style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+            Text(
+              'Historial de Eventos',
+              style: GoogleFonts.outfit(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
             const SizedBox(height: 8),
             if (ticket.events.isEmpty)
-              Text('No hay eventos registrados.', style: GoogleFonts.outfit(color: AppTheme.textSecondary))
+              Text(
+                'No hay eventos registrados.',
+                style: GoogleFonts.outfit(color: AppTheme.textSecondary),
+              )
             else
               ListView.separated(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 itemCount: ticket.events.length,
-                separatorBuilder: (_, __) => const Divider(color: AppTheme.border, height: 16),
+                separatorBuilder: (_, _) =>
+                    const Divider(color: AppTheme.border, height: 16),
                 itemBuilder: (context, idx) {
                   final ev = ticket.events[idx];
                   return Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(Icons.history_rounded, size: 16, color: AppTheme.accentBlue),
+                      const Icon(
+                        Icons.history_rounded,
+                        size: 16,
+                        color: AppTheme.accentBlue,
+                      ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Column(
@@ -299,10 +368,20 @@ class TicketDetailPage extends StatelessWidget {
                           children: [
                             Text(
                               '${ev.actor} • ${ev.kind}',
-                              style: GoogleFonts.firaCode(fontSize: 11, fontWeight: FontWeight.bold, color: AppTheme.textSecondary),
+                              style: GoogleFonts.firaCode(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: AppTheme.textSecondary,
+                              ),
                             ),
                             if (ev.note != null && ev.note!.isNotEmpty)
-                              Text(ev.note!, style: GoogleFonts.outfit(fontSize: 13, color: Colors.white)),
+                              Text(
+                                ev.note!,
+                                style: GoogleFonts.outfit(
+                                  fontSize: 13,
+                                  color: Colors.white,
+                                ),
+                              ),
                           ],
                         ),
                       ),
