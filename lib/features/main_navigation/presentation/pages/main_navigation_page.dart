@@ -17,7 +17,6 @@ import 'package:moly_ide/features/documentation/presentation/cubit/docs_cubit.da
 import 'package:moly_ide/features/documentation/presentation/pages/docs_page.dart';
 import 'package:moly_ide/features/explorer_readonly/presentation/cubit/readonly_explorer_cubit.dart';
 import 'package:moly_ide/features/explorer_readonly/presentation/pages/readonly_explorer_page.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class MainNavigationPage extends StatefulWidget {
   const MainNavigationPage({super.key});
