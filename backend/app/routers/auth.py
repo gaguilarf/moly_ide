@@ -35,8 +35,8 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    email = payload["sub"]
-    res = await db.execute(select(User).where(User.email == email))
+    username = payload["sub"]
+    res = await db.execute(select(User).where(User.username == username))
     user = res.scalar_one_or_none()
     if not user or not user.is_active:
         raise HTTPException(
@@ -58,15 +58,15 @@ async def register(
     token de agente compartido podia crearse una cuenta `admin` mandando
     `{"role": "admin"}`, que es escalada de privilegios por la puerta principal.
     El primer usuario se siembra con `migrations/seed_user.py`."""
-    res = await db.execute(select(User).where(User.email == payload.email.lower().strip()))
+    res = await db.execute(select(User).where(User.username == payload.username.lower().strip()))
     if res.scalar_one_or_none():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="El correo electrónico ya está registrado.",
+            detail="Ese nombre de usuario ya está registrado.",
         )
 
     user = User(
-        email=payload.email.lower().strip(),
+        username=payload.username.lower().strip(),
         name=payload.name,
         password_hash=get_password_hash(payload.password),
         role=payload.role,
@@ -80,14 +80,16 @@ async def register(
 
 @router.post("/login", response_model=TokenResponse)
 async def login(payload: UserLogin, db: AsyncSession = Depends(get_db)):
-    email_clean = payload.email.lower().strip()
-    res = await db.execute(select(User).where(User.email == email_clean))
+    identificador = payload.identificador
+    res = await db.execute(select(User).where(User.username == identificador))
     user = res.scalar_one_or_none()
 
     if not user or not verify_password(payload.password, user.password_hash):
+        # Un solo mensaje para "no existe" y "contraseña mala": distinguirlos
+        # deja probar nombres de usuario hasta dar con los que existen.
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Correo o contraseña incorrectos.",
+            detail="Usuario o contraseña incorrectos.",
         )
 
     if not user.is_active:
@@ -96,7 +98,7 @@ async def login(payload: UserLogin, db: AsyncSession = Depends(get_db)):
             detail="Esta cuenta está desactivada.",
         )
 
-    token = create_access_token({"sub": user.email, "role": user.role.value, "id": user.id})
+    token = create_access_token({"sub": user.username, "role": user.role.value, "id": user.id})
     return TokenResponse(access_token=token, token_type="bearer", user=UserOut.model_validate(user))
 
 

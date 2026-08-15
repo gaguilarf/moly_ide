@@ -6,7 +6,6 @@ import 'package:moly_ide/core/di/injection.dart';
 import 'package:moly_ide/core/ssh/ssh_service.dart';
 import 'package:moly_ide/core/theme/app_theme.dart';
 import 'package:moly_ide/features/connection/presentation/cubit/connection_cubit.dart';
-import 'package:moly_ide/features/connection/presentation/pages/connection_page.dart';
 import 'package:moly_ide/features/ide_dashboard/presentation/cubit/ide_cubit.dart';
 import 'package:moly_ide/features/ide_dashboard/presentation/cubit/ide_state.dart';
 import 'package:moly_ide/features/explorer/presentation/widgets/file_explorer_widget.dart';
@@ -43,7 +42,8 @@ class _IDEDashboardViewState extends State<IDEDashboardView> {
   void initState() {
     super.initState();
     PackageInfo.fromPlatform().then((info) {
-      if (mounted) setState(() => _appVersion = '${info.version}+${info.buildNumber}');
+      if (mounted)
+        setState(() => _appVersion = '${info.version}+${info.buildNumber}');
     });
   }
 
@@ -51,10 +51,13 @@ class _IDEDashboardViewState extends State<IDEDashboardView> {
     showDialog(
       context: context,
       builder: (dialContext) => AlertDialog(
-        title: Text('Desconectar VPS',
-            style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+        title: Text(
+          'Desconectar VPS',
+          style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
+        ),
         content: const Text(
-            '¿Estás seguro de que deseas cerrar la sesión SSH y desconectarte del servidor VPS?'),
+          '¿Estás seguro de que deseas cerrar la sesión SSH y desconectarte del servidor VPS?',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialContext),
@@ -63,15 +66,13 @@ class _IDEDashboardViewState extends State<IDEDashboardView> {
           ElevatedButton(
             onPressed: () {
               Navigator.pop(dialContext);
+              // Al desconectar, IdeGate vuelve solo al formulario: esta
+              // pantalla es una pestaña, no una ruta que se pueda reemplazar.
               context.read<ConnectionCubit>().disconnect();
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(
-                    builder: (context) => const ConnectionPage()),
-              );
             },
             style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFFF5252)),
+              backgroundColor: const Color(0xFFFF5252),
+            ),
             child: const Text('Desconectar'),
           ),
         ],
@@ -94,7 +95,8 @@ class _IDEDashboardViewState extends State<IDEDashboardView> {
                 backgroundColor: const Color(0xFFFF5252),
                 behavior: SnackBarBehavior.floating,
                 shape: RoundedRectangleBorder(
-                    borderRadius: AppTheme.borderRadius),
+                  borderRadius: AppTheme.borderRadius,
+                ),
                 content: Text(
                   state.errorMessage!,
                   style: GoogleFonts.outfit(color: Colors.white),
@@ -111,10 +113,13 @@ class _IDEDashboardViewState extends State<IDEDashboardView> {
               Expanded(
                 child: BlocBuilder<IDECubit, IDEState>(
                   builder: (context, state) {
-                    final double screenWidth =
-                        MediaQuery.of(context).size.width;
-                    final double editorWidth =
-                        (screenWidth * 0.85).clamp(280.0, 600.0);
+                    final double screenWidth = MediaQuery.of(
+                      context,
+                    ).size.width;
+                    final double editorWidth = (screenWidth * 0.85).clamp(
+                      280.0,
+                      600.0,
+                    );
 
                     return Stack(
                       children: [
@@ -162,15 +167,19 @@ class _IDEDashboardViewState extends State<IDEDashboardView> {
                                   ),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: AppTheme.primaryPurple
-                                          .withOpacity(0.4),
+                                      color: AppTheme.primaryPurple.withOpacity(
+                                        0.4,
+                                      ),
                                       blurRadius: 8,
                                       spreadRadius: 1,
                                     ),
                                   ],
                                 ),
-                                child: const Icon(Icons.chevron_right,
-                                    color: Colors.white, size: 16),
+                                child: const Icon(
+                                  Icons.chevron_right,
+                                  color: Colors.white,
+                                  size: 16,
+                                ),
                               ),
                             ),
                           ),
@@ -197,15 +206,19 @@ class _IDEDashboardViewState extends State<IDEDashboardView> {
                                   ),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: AppTheme.primaryPurple
-                                          .withOpacity(0.4),
+                                      color: AppTheme.primaryPurple.withOpacity(
+                                        0.4,
+                                      ),
                                       blurRadius: 8,
                                       spreadRadius: 1,
                                     ),
                                   ],
                                 ),
-                                child: const Icon(Icons.chevron_left,
-                                    color: Colors.white, size: 16),
+                                child: const Icon(
+                                  Icons.chevron_left,
+                                  color: Colors.white,
+                                  size: 16,
+                                ),
                               ),
                             ),
                           ),
@@ -218,8 +231,14 @@ class _IDEDashboardViewState extends State<IDEDashboardView> {
                             onDragUpdate: (delta) {
                               final size = MediaQuery.of(context).size;
                               setState(() {
-                                _dpadLeft = (_dpadLeft + delta.dx).clamp(0.0, size.width - 44.0);
-                                _dpadBottom = (_dpadBottom - delta.dy).clamp(0.0, size.height - 100.0);
+                                _dpadLeft = (_dpadLeft + delta.dx).clamp(
+                                  0.0,
+                                  size.width - 44.0,
+                                );
+                                _dpadBottom = (_dpadBottom - delta.dy).clamp(
+                                  0.0,
+                                  size.height - 100.0,
+                                );
                               });
                             },
                           ),
@@ -232,7 +251,9 @@ class _IDEDashboardViewState extends State<IDEDashboardView> {
                               child: Card(
                                 child: Padding(
                                   padding: const EdgeInsets.symmetric(
-                                      horizontal: 24.0, vertical: 20.0),
+                                    horizontal: 24.0,
+                                    vertical: 20.0,
+                                  ),
                                   child: Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
@@ -248,7 +269,8 @@ class _IDEDashboardViewState extends State<IDEDashboardView> {
                                       Text(
                                         state.loadingFileMessage!,
                                         style: GoogleFonts.outfit(
-                                            fontWeight: FontWeight.w500),
+                                          fontWeight: FontWeight.w500,
+                                        ),
                                       ),
                                     ],
                                   ),
@@ -264,7 +286,9 @@ class _IDEDashboardViewState extends State<IDEDashboardView> {
                               child: Card(
                                 child: Padding(
                                   padding: const EdgeInsets.symmetric(
-                                      horizontal: 24.0, vertical: 20.0),
+                                    horizontal: 24.0,
+                                    vertical: 20.0,
+                                  ),
                                   child: Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
@@ -280,7 +304,8 @@ class _IDEDashboardViewState extends State<IDEDashboardView> {
                                       Text(
                                         state.savingFileMessage!,
                                         style: GoogleFonts.outfit(
-                                            fontWeight: FontWeight.w500),
+                                          fontWeight: FontWeight.w500,
+                                        ),
                                       ),
                                     ],
                                   ),
@@ -309,14 +334,15 @@ class _IDEDashboardViewState extends State<IDEDashboardView> {
       padding: const EdgeInsets.symmetric(horizontal: 16.0),
       decoration: const BoxDecoration(
         color: AppTheme.surface,
-        border: Border(
-          bottom: BorderSide(color: AppTheme.border, width: 1.2),
-        ),
+        border: Border(bottom: BorderSide(color: AppTheme.border, width: 1.2)),
       ),
       child: Row(
         children: [
-          const Icon(Icons.developer_mode_rounded,
-              color: AppTheme.accentBlue, size: 24),
+          const Icon(
+            Icons.developer_mode_rounded,
+            color: AppTheme.accentBlue,
+            size: 24,
+          ),
           if (!isMobile) ...[
             const SizedBox(width: 8),
             Text(
@@ -407,8 +433,8 @@ class _IDEDashboardViewState extends State<IDEDashboardView> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                            builder: (context) =>
-                                const ResourceMonitorPage()),
+                          builder: (context) => const ResourceMonitorPage(),
+                        ),
                       );
                     },
                   ),
@@ -434,7 +460,9 @@ class _IDEDashboardViewState extends State<IDEDashboardView> {
                         backgroundColor: AppTheme.primaryPurple,
                         disabledBackgroundColor: AppTheme.surfaceLight,
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 10),
+                          horizontal: 14,
+                          vertical: 10,
+                        ),
                       ),
                       icon: const Icon(Icons.save_rounded, size: 16),
                       label: Text(
@@ -453,8 +481,10 @@ class _IDEDashboardViewState extends State<IDEDashboardView> {
 
                   if (width < 500)
                     IconButton(
-                      icon: const Icon(Icons.power_settings_new_rounded,
-                          color: Color(0xFFFF5252)),
+                      icon: const Icon(
+                        Icons.power_settings_new_rounded,
+                        color: Color(0xFFFF5252),
+                      ),
                       tooltip: 'Desconectar',
                       onPressed: () => _handleDisconnect(context),
                     )
@@ -463,17 +493,25 @@ class _IDEDashboardViewState extends State<IDEDashboardView> {
                       onPressed: () => _handleDisconnect(context),
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 10),
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
                         side: const BorderSide(
-                            color: Color(0xFFFF5252), width: 1.0),
+                          color: Color(0xFFFF5252),
+                          width: 1.0,
+                        ),
                         foregroundColor: const Color(0xFFFF5252),
                       ),
-                      icon: const Icon(Icons.power_settings_new_rounded,
-                          size: 16),
+                      icon: const Icon(
+                        Icons.power_settings_new_rounded,
+                        size: 16,
+                      ),
                       label: Text(
                         'SALIR',
                         style: GoogleFonts.outfit(
-                            fontSize: 12, fontWeight: FontWeight.bold),
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                 ],
@@ -485,4 +523,3 @@ class _IDEDashboardViewState extends State<IDEDashboardView> {
     );
   }
 }
-

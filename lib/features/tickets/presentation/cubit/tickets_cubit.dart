@@ -207,7 +207,15 @@ class TicketsCubit extends Cubit<TicketsState> {
     }
   }
 
-  Future<void> transitionTicket({
+  /// Mueve el ticket. Devuelve `null` si el servidor lo aceptó, o el motivo del
+  /// rechazo.
+  ///
+  /// El motivo se DEVUELVE en vez de emitirse por `errorMessage` a propósito:
+  /// quien llama es un diálogo que debe seguir abierto para enseñarlo. Emitido,
+  /// el aviso salía por el tablero de detrás mientras el diálogo ya se había
+  /// cerrado, así que un 409 o un 422 se veía como si el ticket se hubiera
+  /// movido.
+  Future<String?> transitionTicket({
     required String code,
     required String toStatus,
     String? note,
@@ -218,8 +226,9 @@ class TicketsCubit extends Cubit<TicketsState> {
         data: {'to_status': toStatus, 'actor': 'moly_mobile', 'note': note},
       );
       await loadBoard(silencioso: true);
+      return null;
     } catch (e) {
-      emit(state.copyWith(errorMessage: _detalle(e)));
+      return _detalle(e);
     }
   }
 

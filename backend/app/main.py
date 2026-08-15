@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from backend.app.config import settings
 from backend.app.database import engine, Base
-from backend.app.routers import auth, tickets, claude, infra, backups, docs, explorer, registro, documentacion
+from backend.app.routers import auth, tickets, claude, infra, backups, docs, explorer, registro, documentacion, system
 from backend.app.security import require_actor
 
 
@@ -49,6 +49,7 @@ app.include_router(infra.router, prefix=settings.API_V1_STR, dependencies=proteg
 app.include_router(backups.router, prefix=settings.API_V1_STR, dependencies=protegido)
 app.include_router(docs.router, prefix=settings.API_V1_STR, dependencies=protegido)
 app.include_router(explorer.router, prefix=settings.API_V1_STR, dependencies=protegido)
+app.include_router(system.router, prefix=settings.API_V1_STR, dependencies=protegido)
 
 
 @app.get("/")

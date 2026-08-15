@@ -26,6 +26,7 @@ class ClaudeState {
     List<ClaudeAccountModel>? accounts,
     List<ClaudeTaskModel>? tasks,
     ClaudeTaskModel? activeTask,
+    bool clearActiveTask = false,
     List<String>? liveLogs,
     String? pendingQuestion,
     bool clearQuestion = false,
@@ -35,9 +36,14 @@ class ClaudeState {
       status: status ?? this.status,
       accounts: accounts ?? this.accounts,
       tasks: tasks ?? this.tasks,
-      activeTask: activeTask ?? this.activeTask,
+      // `clearActiveTask` existe porque con `??` no había forma de volver a
+      // null: al terminar la tarea se quedaba pegada la anterior y
+      // respondToHardStop seguía contestándole a una tarea muerta.
+      activeTask: clearActiveTask ? null : (activeTask ?? this.activeTask),
       liveLogs: liveLogs ?? this.liveLogs,
-      pendingQuestion: clearQuestion ? null : (pendingQuestion ?? this.pendingQuestion),
+      pendingQuestion: clearQuestion
+          ? null
+          : (pendingQuestion ?? this.pendingQuestion),
       errorMessage: errorMessage,
     );
   }

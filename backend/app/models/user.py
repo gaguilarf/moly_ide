@@ -14,7 +14,10 @@ class User(Base):
     __tablename__ = "panel_users"
 
     id = Column(Integer, primary_key=True, index=True)
-    email = Column(String(255), unique=True, nullable=False, index=True)
+    # Nombre de usuario, no correo: aqui no hay envio de correo, ni
+    # verificacion, ni recuperacion por esa via, asi que la direccion solo era
+    # una cadena larga que escribir en el movil cada vez que caduca la sesion.
+    username = Column(String(64), unique=True, nullable=False, index=True)
     name = Column(String(150), default="", nullable=False)
     password_hash = Column(String(255), nullable=False)
     role = Column(SQLEnum(UserRole, name="user_role"), default=UserRole.developer, nullable=False)

@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:moly_ide/features/auth/data/models/auth_user_model.dart';
 import 'package:moly_ide/features/tickets/data/models/ticket_model.dart';
 import 'package:moly_ide/features/tickets/presentation/cubit/tickets_state.dart';
 import 'package:moly_ide/features/tickets/presentation/ticket_catalog.dart';
@@ -50,6 +51,7 @@ final _sprint = TicketsState(
 );
 
 void main() {
+  _pruebasDeCuenta();
   group('Sprint seleccionado', () {
     test('resuelve el sprint y el activo', () {
       expect(_sprint.selectedSprint?.name, 'Sprint 7');
@@ -155,6 +157,30 @@ void main() {
       final soloBack = _sprint.copyWith(areaFilter: 'back');
       expect(soloBack.ticketsEnColumna('backlog').length, 1);
       expect(soloBack.ticketsEnColumna('desarrollo'), isEmpty);
+    });
+  });
+}
+
+/// Modelo de usuario: el identificador de la cuenta es el nombre de usuario, no
+/// el correo. Si `fromJson` mirara la clave vieja, la sesión guardada quedaría
+/// sin identificar y la pantalla de acceso no podría precargarla.
+void _pruebasDeCuenta() {
+  group('Cuenta', () {
+    test('lee el nombre de usuario que manda el servidor', () {
+      final u = AuthUserModel.fromJson({
+        'id': 1,
+        'username': 'gaguilar',
+        'name': 'Gustavo Aguilar',
+        'role': 'admin',
+        'is_active': true,
+      });
+      expect(u.username, 'gaguilar');
+      expect(u.toJson()['username'], 'gaguilar');
+    });
+
+    test('un servidor sin migrar no revienta el modelo', () {
+      final u = AuthUserModel.fromJson({'id': 1, 'email': 'x@y.z'});
+      expect(u.username, '', reason: 'sin usuario, pero sin excepción');
     });
   });
 }

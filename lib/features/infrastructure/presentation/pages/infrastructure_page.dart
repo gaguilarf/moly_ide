@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:moly_ide/core/theme/app_theme.dart';
 import 'package:moly_ide/features/infrastructure/presentation/cubit/infra_cubit.dart';
 import 'package:moly_ide/features/infrastructure/presentation/cubit/infra_state.dart';
+import 'package:moly_ide/features/monitor/presentation/pages/resource_monitor_page.dart';
 import 'package:moly_ide/features/updates/presentation/widgets/update_dialog.dart';
 
 class InfrastructurePage extends StatefulWidget {
@@ -42,12 +43,29 @@ class _InfrastructurePageState extends State<InfrastructurePage> {
       backgroundColor: AppTheme.background,
       appBar: AppBar(
         backgroundColor: AppTheme.surface,
-        title: Text('Monitor de Puertos', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 18)),
+        title: Text(
+          'Monitor de Puertos',
+          style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 18),
+        ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.system_update_rounded, color: AppTheme.accentBlue),
+            icon: const Icon(
+              Icons.system_update_rounded,
+              color: AppTheme.accentBlue,
+            ),
             tooltip: 'Actualizar App',
             onPressed: () => UpdateDialog.show(context),
+          ),
+          IconButton(
+            icon: const Icon(Icons.speed_rounded, color: AppTheme.accentBlue),
+            tooltip: 'Monitor de recursos',
+            // Se empuja como ruta y no como pestana a proposito: la pagina
+            // consulta el VPS por SSH cada 3 s mientras esta montada, y en el
+            // IndexedStack de la navegacion seguiria haciendolo sin verse.
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const ResourceMonitorPage()),
+            ),
           ),
           IconButton(
             icon: const Icon(Icons.refresh_rounded, color: AppTheme.accentBlue),
@@ -62,36 +80,64 @@ class _InfrastructurePageState extends State<InfrastructurePage> {
             children: [
               // Server Node Selector Chips
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
+                ),
                 color: AppTheme.surface,
                 child: Row(
                   children: [
-                    Text('SERVIDOR:', style: GoogleFonts.firaCode(fontSize: 11, fontWeight: FontWeight.bold, color: AppTheme.textSecondary)),
+                    Text(
+                      'SERVIDOR:',
+                      style: GoogleFonts.firaCode(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.textSecondary,
+                      ),
+                    ),
                     const SizedBox(width: 10),
                     ChoiceChip(
-                      label: Text('VPS Brittany', style: GoogleFonts.outfit(fontSize: 12)),
+                      label: Text(
+                        'VPS Brittany',
+                        style: GoogleFonts.outfit(fontSize: 12),
+                      ),
                       selected: state.selectedNode == 'vps-brittany',
                       selectedColor: AppTheme.primaryPurple.withOpacity(0.4),
                       onSelected: (selected) {
-                        if (selected) context.read<InfraCubit>().loadServerStatus(node: 'vps-brittany');
+                        if (selected)
+                          context.read<InfraCubit>().loadServerStatus(
+                            node: 'vps-brittany',
+                          );
                       },
                     ),
                     const SizedBox(width: 8),
                     ChoiceChip(
-                      label: Text('Jetson', style: GoogleFonts.outfit(fontSize: 12)),
+                      label: Text(
+                        'Jetson',
+                        style: GoogleFonts.outfit(fontSize: 12),
+                      ),
                       selected: state.selectedNode == 'jetson',
                       selectedColor: AppTheme.primaryPurple.withOpacity(0.4),
                       onSelected: (selected) {
-                        if (selected) context.read<InfraCubit>().loadServerStatus(node: 'jetson');
+                        if (selected)
+                          context.read<InfraCubit>().loadServerStatus(
+                            node: 'jetson',
+                          );
                       },
                     ),
                     const SizedBox(width: 8),
                     ChoiceChip(
-                      label: Text('Personal', style: GoogleFonts.outfit(fontSize: 12)),
+                      label: Text(
+                        'Personal',
+                        style: GoogleFonts.outfit(fontSize: 12),
+                      ),
                       selected: state.selectedNode == 'vps-personal',
                       selectedColor: AppTheme.primaryPurple.withOpacity(0.4),
                       onSelected: (selected) {
-                        if (selected) context.read<InfraCubit>().loadServerStatus(node: 'vps-personal');
+                        if (selected)
+                          context.read<InfraCubit>().loadServerStatus(
+                            node: 'vps-personal',
+                          );
                       },
                     ),
                   ],
@@ -99,7 +145,13 @@ class _InfrastructurePageState extends State<InfrastructurePage> {
               ),
 
               if (state.status == InfraStatus.loading)
-                const Expanded(child: Center(child: CircularProgressIndicator(color: AppTheme.accentBlue)))
+                const Expanded(
+                  child: Center(
+                    child: CircularProgressIndicator(
+                      color: AppTheme.accentBlue,
+                    ),
+                  ),
+                )
               else if (state.serverStatus != null) ...[
                 // Server Summary Card
                 Container(
@@ -117,7 +169,9 @@ class _InfrastructurePageState extends State<InfrastructurePage> {
                         height: 10,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: state.serverStatus!.isReachable ? const Color(0xFF00FF66) : const Color(0xFFFF3366),
+                          color: state.serverStatus!.isReachable
+                              ? const Color(0xFF00FF66)
+                              : const Color(0xFFFF3366),
                         ),
                       ),
                       const SizedBox(width: 10),
@@ -126,11 +180,18 @@ class _InfrastructurePageState extends State<InfrastructurePage> {
                         children: [
                           Text(
                             state.serverStatus!.serverName,
-                            style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.white),
+                            style: GoogleFonts.outfit(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                              color: Colors.white,
+                            ),
                           ),
                           Text(
                             'Host: ${state.serverStatus!.serverHost} • ${state.serverStatus!.ports.length} puertos a la escucha',
-                            style: GoogleFonts.firaCode(fontSize: 11, color: AppTheme.textSecondary),
+                            style: GoogleFonts.firaCode(
+                              fontSize: 11,
+                              color: AppTheme.textSecondary,
+                            ),
                           ),
                         ],
                       ),
@@ -141,7 +202,10 @@ class _InfrastructurePageState extends State<InfrastructurePage> {
                 // Ports List
                 Expanded(
                   child: ListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 4,
+                    ),
                     itemCount: state.serverStatus!.ports.length,
                     itemBuilder: (context, idx) {
                       final port = state.serverStatus!.ports[idx];
@@ -152,7 +216,9 @@ class _InfrastructurePageState extends State<InfrastructurePage> {
                         color: AppTheme.surface,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(8),
-                          side: BorderSide(color: AppTheme.border.withOpacity(0.5)),
+                          side: BorderSide(
+                            color: AppTheme.border.withOpacity(0.5),
+                          ),
                         ),
                         child: Padding(
                           padding: const EdgeInsets.all(12),
@@ -161,7 +227,9 @@ class _InfrastructurePageState extends State<InfrastructurePage> {
                               // Port Number Badge
                               Container(
                                 width: 56,
-                                padding: const EdgeInsets.symmetric(vertical: 6),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 6,
+                                ),
                                 decoration: BoxDecoration(
                                   color: catColor.withOpacity(0.15),
                                   borderRadius: BorderRadius.circular(6),
@@ -183,17 +251,23 @@ class _InfrastructurePageState extends State<InfrastructurePage> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      port.serviceName ?? 'Servicio sin catalogar',
+                                      port.serviceName ??
+                                          'Servicio sin catalogar',
                                       style: GoogleFonts.outfit(
                                         fontSize: 14,
                                         fontWeight: FontWeight.w600,
-                                        color: port.serviceName != null ? Colors.white : const Color(0xFFFF9900),
+                                        color: port.serviceName != null
+                                            ? Colors.white
+                                            : const Color(0xFFFF9900),
                                       ),
                                     ),
                                     const SizedBox(height: 2),
                                     Text(
                                       'Escucha en: ${port.addresses.join(", ")}',
-                                      style: GoogleFonts.firaCode(fontSize: 11, color: AppTheme.textSecondary),
+                                      style: GoogleFonts.firaCode(
+                                        fontSize: 11,
+                                        color: AppTheme.textSecondary,
+                                      ),
                                     ),
                                   ],
                                 ),
@@ -202,9 +276,14 @@ class _InfrastructurePageState extends State<InfrastructurePage> {
                                 Tooltip(
                                   message: 'Expuesto a internet (0.0.0.0 / ::)',
                                   child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                      vertical: 2,
+                                    ),
                                     decoration: BoxDecoration(
-                                      color: const Color(0xFFFF3366).withOpacity(0.2),
+                                      color: const Color(
+                                        0xFFFF3366,
+                                      ).withOpacity(0.2),
                                       borderRadius: BorderRadius.circular(4),
                                     ),
                                     child: Text(
