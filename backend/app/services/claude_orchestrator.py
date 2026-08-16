@@ -58,47 +58,82 @@ class ClaudeOrchestratorService:
 
             task.status = ClaudeTaskStatus.ejecutando
             await session.commit()
+            prompt, target_repo = task.prompt, task.target_repo
 
-            # Lanzar subproceso en segundo plano
-            asyncio.create_task(self._run_claude_process(task_id, task.prompt, task.target_repo, db_session_factory))
+        asyncio.create_task(
+            self._run_claude_process(task_id, prompt, target_repo, db_session_factory)
+        )
 
-    async def _marcar_fallida(self, task_id: UUID, db_session_factory, motivo: str):
-        """Deja la tarea en fallido con el motivo, y lo manda por el WebSocket.
+    async def continue_task(self, task_id: UUID, mensaje: str, db_session_factory) -> None:
+        """Sigue la conversacion: otro turno sobre la MISMA sesion de Claude.
 
-        Sin el aviso, una tarea que muere antes de arrancar no genera ni un solo
-        `task_log`: la app se queda con su «Iniciando tarea...» para siempre.
+        Antes no habia forma de continuar. Cada tarea era un `claude --print`
+        suelto, asi que responder a lo que Claude preguntaba abria un chat nuevo
+        que no sabia nada de lo anterior. Con `--session-id` al arrancar y
+        `--resume` aqui, es la misma conversacion.
         """
         async with db_session_factory() as session:
             task = await session.get(ClaudeTask, task_id)
+            if not task:
+                return
+            task.status = ClaudeTaskStatus.ejecutando
+            await session.commit()
+            target_repo = task.target_repo
+
+        # El turno del usuario se mete en la transcripcion antes de responder,
+        # para que la conversacion se lea en orden al reabrirla. Va en markdown
+        # porque la app pinta la salida como tal.
+        turno = f"\n\n**Tú:** {mensaje}\n\n"
+        await self._anadir_a_log(task_id, turno, db_session_factory)
+
+        asyncio.create_task(
+            self._run_claude_process(
+                task_id, mensaje, target_repo, db_session_factory, reanudar=True
+            )
+        )
+
+    async def _anadir_a_log(self, task_id: UUID, texto: str, db_session_factory):
+        async with db_session_factory() as session:
+            task = await session.get(ClaudeTask, task_id)
             if task:
-                task.status = ClaudeTaskStatus.fallido
-                task.execution_logs = motivo
+                task.execution_logs = (task.execution_logs or "") + texto
                 await session.commit()
-
         await self.broadcast_event(
-            "task_log", {"task_id": str(task_id), "chunk": f"\n[ERROR] {motivo}\n"}
-        )
-        await self.broadcast_event(
-            "task_finished", {"task_id": str(task_id), "status": "fallido"}
+            "task_log", {"task_id": str(task_id), "chunk": texto}
         )
 
-    async def _run_claude_process(self, task_id: UUID, prompt: str, target_repo: Optional[str], db_session_factory):
-        # En `--print` no hay nadie a quien pedirle permiso: si Claude necesita
-        # una herramienta que no tiene concedida, escribe la peticion de
-        # aprobacion como texto y la tarea se queda colgada esperando a un
-        # humano que no va a llegar. Por eso las herramientas van declaradas.
+    async def _run_claude_process(
+        self,
+        task_id: UUID,
+        prompt: str,
+        target_repo: Optional[str],
+        db_session_factory,
+        reanudar: bool = False,
+    ):
+        # `--output-format=stream-json` con `--include-partial-messages` es lo
+        # que hace que el texto llegue segun Claude lo escribe. Con la salida
+        # `text` por defecto, el CLI no imprimia nada hasta terminar: la app se
+        # quedaba en «Claude esta trabajando...» y luego soltaba todo de golpe.
+        # `--verbose` es obligatorio para este formato en modo --print.
         #
-        # La lista es deliberadamente corta: lectura del workspace y el cliente
-        # de la API de Moly. NO incluye Edit, Write ni Bash libre — dejar que un
-        # agente autonomo escriba en los repos o ejecute cualquier cosa es una
-        # decision aparte, no un efecto colateral de poder consultar tickets.
+        # La sesion se identifica con el id de la tarea, que ya es un UUID: al
+        # arrancar se fija con `--session-id` y en los turnos siguientes se
+        # retoma con `--resume`. Asi la conversacion tiene memoria.
+        #
+        # Las herramientas van declaradas porque en `--print` no hay a quien
+        # pedirle permiso, y la lista es corta a proposito: lectura del
+        # workspace y el cliente de la API. NO incluye Edit, Write ni Bash
+        # libre. El `=` importa: la opcion es variadica y en la forma separada
+        # se tragaba el prompt como si fuera otra herramienta.
         cmd = [
             settings.CLAUDE_CLI_PATH,
             "--print",
-            # Con `=` y no como argumento suelto: la opcion es variadica y en la
-            # forma separada se tragaba el prompt como si fuera otra herramienta,
-            # dejando a Claude sin nada que responder.
+            "--output-format=stream-json",
+            "--include-partial-messages",
+            "--verbose",
             "--allowed-tools=Read,Glob,Grep,Bash(bin/moly *),Bash(git log *),Bash(git status)",
+            "--resume" if reanudar else "--session-id",
+            str(task_id),
             prompt,
         ]
         cwd = target_repo or settings.REPOS_BASE_DIR
@@ -130,9 +165,9 @@ class ClaudeOrchestratorService:
             process = await asyncio.create_subprocess_exec(
                 *cmd,
                 cwd=cwd,
-                stdin=asyncio.subprocess.PIPE,
+                stdin=asyncio.subprocess.DEVNULL,
                 stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.STDOUT,
+                stderr=asyncio.subprocess.PIPE,
             )
         except Exception as e:
             await self._marcar_fallida(
@@ -147,36 +182,59 @@ class ClaudeOrchestratorService:
 
         await self.broadcast_event("task_started", {"task_id": str(task_id)})
 
-        rate_limit_pattern = re.compile(r"(rate limit reached|usage limit exceeded|credit balance is too low)", re.IGNORECASE)
-        hard_stop_question_pattern = re.compile(r"(\[PROMPT_USER\]|¿Quieres que proceda\?|Do you want to proceed\?|Please confirm|Por favor confirma)", re.IGNORECASE)
+        rate_limit_pattern = re.compile(
+            r"(rate limit reached|usage limit exceeded|credit balance is too low)",
+            re.IGNORECASE,
+        )
 
-        full_output = []
+        trozos: list[str] = []
+        fallo_declarado: Optional[str] = None
 
         try:
             while True:
-                line = await process.stdout.readline()
-                if not line:
+                linea = await process.stdout.readline()
+                if not linea:
                     break
-                text = line.decode("utf-8", errors="replace")
 
-                # Ruido del CLI, no respuesta de Claude: se mantiene el pipe de
-                # stdin abierto porque por ahi se le inyectan las respuestas del
-                # freno duro, y al no escribir nada al arrancar avisa a los 3 s.
-                # Aparecia como primera linea de todas las conversaciones.
-                if "no stdin data received" in text:
+                cruda = linea.decode("utf-8", errors="replace").strip()
+                if not cruda:
                     continue
 
-                full_output.append(text)
-                active.logs.append(text)
+                try:
+                    evento = json.loads(cruda)
+                except json.JSONDecodeError:
+                    # El CLI puede escupir alguna linea suelta que no es del
+                    # protocolo. No es respuesta de Claude: no se enseña.
+                    continue
 
-                # Emitir log a la app móvil por WebSocket
-                await self.broadcast_event("task_log", {"task_id": str(task_id), "chunk": text})
+                tipo = evento.get("type")
 
-                # 1. Cuota agotada. Con una sola cuenta no hay a donde rotar, asi
-                # que se corta y se dice por que: antes se marcaba la cuenta y se
-                # salia del bucle en silencio, dejando la tarea a medias sin
-                # explicacion y sin reintentar nada.
-                if rate_limit_pattern.search(text):
+                if tipo == "stream_event":
+                    interno = evento.get("event") or {}
+                    if interno.get("type") == "content_block_delta":
+                        delta = interno.get("delta") or {}
+                        if delta.get("type") == "text_delta":
+                            texto = delta.get("text") or ""
+                            if texto:
+                                trozos.append(texto)
+                                active.logs.append(texto)
+                                await self.broadcast_event(
+                                    "task_log",
+                                    {"task_id": str(task_id), "chunk": texto},
+                                )
+
+                elif tipo == "result":
+                    if evento.get("is_error"):
+                        fallo_declarado = (
+                            str(evento.get("result") or "").strip()
+                            or "Claude termino con error."
+                        )
+
+                elif tipo == "system" and evento.get("subtype") == "status":
+                    # Solo telemetria del CLI; no es contenido.
+                    continue
+
+                if rate_limit_pattern.search(cruda):
                     logger.warning(f"Limite de cuota detectado en la tarea {task_id}.")
                     await self._marcar_fallida(
                         task_id,
@@ -185,50 +243,42 @@ class ClaudeOrchestratorService:
                     )
                     return
 
-                # 2. Detección de Freno Duro (Human-in-the-Loop)
-                # El «o "¿" in text» que habia aqui paraba la tarea en cuanto
-                # Claude escribiera CUALQUIER pregunta en español —incluida una
-                # retorica dentro de su propia respuesta—, dejandola bloqueada
-                # esperando a alguien. Se queda solo el patron explicito.
-                if hard_stop_question_pattern.search(text):
-                    active.is_waiting_human = True
-                    active.question = text.strip()
-                    async with db_session_factory() as session:
-                        task = await session.get(ClaudeTask, task_id)
-                        if task:
-                            task.status = ClaudeTaskStatus.bloqueado_esperando_humano
-                            task.pending_question = active.question
-                            await session.commit()
-
-                    await self.broadcast_event("hard_stop_triggered", {
-                        "task_id": str(task_id),
-                        "question": active.question,
-                    })
-
-                    # Esperar la respuesta que el usuario envíe desde la app móvil
-                    active.wait_event.clear()
-                    await active.wait_event.wait()
-
-                    # Inyectar la respuesta al stdin de Claude y reanudar
-                    if active.human_response:
-                        resp_bytes = (active.human_response + "\n").encode("utf-8")
-                        process.stdin.write(resp_bytes)
-                        await process.stdin.drain()
-                        active.human_response = None
-                        active.is_waiting_human = False
-
+            error_salida = (await process.stderr.read()).decode(
+                "utf-8", errors="replace"
+            ).strip()
             await process.wait()
 
-            # Finalización de la tarea
+            respuesta = "".join(trozos)
+
+            # Un fallo sin una sola linea de texto dejaria la conversacion muda:
+            # se enseña lo que dijera stderr, que es donde acaban los errores de
+            # arranque del CLI.
+            if process.returncode != 0 and not respuesta:
+                await self._marcar_fallida(
+                    task_id,
+                    db_session_factory,
+                    fallo_declarado
+                    or error_salida
+                    or f"Claude termino con codigo {process.returncode}.",
+                )
+                return
+
             async with db_session_factory() as session:
                 task = await session.get(ClaudeTask, task_id)
                 if task:
-                    task.status = ClaudeTaskStatus.completado if process.returncode == 0 else ClaudeTaskStatus.fallido
-                    task.execution_logs = "".join(full_output)
+                    hubo_fallo = process.returncode != 0 or fallo_declarado
+                    task.status = (
+                        ClaudeTaskStatus.fallido
+                        if hubo_fallo
+                        else ClaudeTaskStatus.completado
+                    )
+                    # Se ACUMULA, no se reemplaza: al continuar la conversacion
+                    # los turnos anteriores tienen que seguir ahi.
+                    task.execution_logs = (task.execution_logs or "") + respuesta
                     task.finished_at = datetime.now(timezone.utc)
 
                     # Si estaba ligada a un ticket, registrar el evento de cierre
-                    if task.ticket_id:
+                    if task.ticket_id and not hubo_fallo:
                         ticket = await session.get(Ticket, task.ticket_id)
                         if ticket:
                             event = TicketEvent(
@@ -243,36 +293,13 @@ class ClaudeOrchestratorService:
 
                     await session.commit()
 
-            await self.broadcast_event("task_finished", {
-                "task_id": str(task_id),
-                "exit_code": process.returncode,
-            })
+            await self.broadcast_event(
+                "task_finished",
+                {"task_id": str(task_id), "exit_code": process.returncode},
+            )
 
         finally:
             self.active_processes.pop(task_id, None)
-
-    async def provide_human_feedback(self, task_id: UUID, response_text: str, db_session_factory) -> bool:
-        """Recibe la respuesta del usuario desde la app móvil y desbloquea a Claude."""
-        active = self.active_processes.get(task_id)
-        if not active or not active.is_waiting_human:
-            return False
-
-        active.human_response = response_text
-        active.wait_event.set()
-
-        async with db_session_factory() as session:
-            task = await session.get(ClaudeTask, task_id)
-            if task:
-                task.human_response = response_text
-                task.status = ClaudeTaskStatus.ejecutando
-                task.pending_question = None
-                await session.commit()
-
-        await self.broadcast_event("hard_stop_resumed", {
-            "task_id": str(task_id),
-            "response": response_text,
-        })
-        return True
 
 
 orchestrator_service = ClaudeOrchestratorService()

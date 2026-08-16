@@ -194,21 +194,21 @@ class ClaudeCubit extends Cubit<ClaudeState> {
     }
   }
 
-  Future<void> respondToHardStop(String response) async {
-    final active = state.activeTask;
-    if (active == null) return;
-
+  /// Otro turno sobre la MISMA conversación. El servidor retoma la sesión de
+  /// Claude, así que recuerda lo anterior.
+  ///
+  /// Antes cualquier mensaje llamaba a `launchTask`, así que responder a lo que
+  /// Claude preguntaba abría un chat nuevo que no sabía nada del anterior.
+  Future<String?> continuarConversacion(String taskId, String mensaje) async {
     try {
       await apiClient.dio.post(
-        '/claude/tasks/${active.id}/respond-hard-stop',
-        data: {'response': response},
+        '/claude/tasks/$taskId/continue',
+        data: {'response': mensaje},
       );
-      _acumular(active.id, '\n[Tú]: $response\n');
-      emit(state.copyWith(clearQuestion: true));
+      await loadDashboardData();
+      return null;
     } catch (e) {
-      emit(
-        state.copyWith(errorMessage: 'Error enviando respuesta a Claude: $e'),
-      );
+      return _detalle(e);
     }
   }
 

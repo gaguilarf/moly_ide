@@ -112,13 +112,33 @@ async def delete_task(task_id: UUID, db: AsyncSession = Depends(get_db)):
     return {"borradas": 1}
 
 
-@router.post("/tasks/{task_id}/respond-hard-stop")
-async def respond_to_hard_stop(task_id: UUID, payload: ClaudeHumanFeedback):
-    """Permite al usuario responder a Claude cuando la tarea se pausó por una pregunta/bloqueo duro."""
-    success = await orchestrator_service.provide_human_feedback(task_id, payload.response, AsyncSessionLocal)
-    if not success:
-        raise HTTPException(status_code=400, detail="La tarea no está activa o no está esperando respuesta humana.")
-    return {"status": "success", "message": "Respuesta enviada a Claude. Tarea reanudada."}
+# Sustituye a /respond-hard-stop, que inyectaba la respuesta por el stdin del
+# subproceso. Eso no podia funcionar con `--print`: para cuando el usuario
+# contestaba, Claude ya habia terminado su turno y no leia nada. Ahora se
+# retoma la sesion con `--resume`, asi que la conversacion tiene memoria de
+# verdad y responder ya no abre un chat nuevo.
+@router.post("/tasks/{task_id}/continue", response_model=ClaudeTaskOut)
+async def continue_task(
+    task_id: UUID, payload: ClaudeHumanFeedback, db: AsyncSession = Depends(get_db)
+):
+    """Sigue la conversación: otro turno sobre la misma sesión de Claude."""
+    task = await db.get(ClaudeTask, task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="La conversación ya no existe.")
+
+    if task.status == ClaudeTaskStatus.ejecutando:
+        raise HTTPException(
+            status_code=409,
+            detail="Claude todavía está respondiendo: espere a que termine.",
+        )
+
+    mensaje = (payload.response or "").strip()
+    if not mensaje:
+        raise HTTPException(status_code=422, detail="El mensaje no puede estar vacío.")
+
+    await orchestrator_service.continue_task(task.id, mensaje, AsyncSessionLocal)
+    await db.refresh(task)
+    return task
 
 
 @ws_router.websocket("/ws")
