@@ -6,8 +6,6 @@ import logging
 from typing import Dict, Optional, List, Set
 from datetime import datetime, timezone
 from uuid import UUID
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update
 from backend.app.models.claude import (
     ClaudeTask,
     ClaudeTaskStatus,
@@ -85,7 +83,24 @@ class ClaudeOrchestratorService:
         )
 
     async def _run_claude_process(self, task_id: UUID, prompt: str, target_repo: Optional[str], db_session_factory):
-        cmd = [settings.CLAUDE_CLI_PATH, "--print", prompt]
+        # En `--print` no hay nadie a quien pedirle permiso: si Claude necesita
+        # una herramienta que no tiene concedida, escribe la peticion de
+        # aprobacion como texto y la tarea se queda colgada esperando a un
+        # humano que no va a llegar. Por eso las herramientas van declaradas.
+        #
+        # La lista es deliberadamente corta: lectura del workspace y el cliente
+        # de la API de Moly. NO incluye Edit, Write ni Bash libre — dejar que un
+        # agente autonomo escriba en los repos o ejecute cualquier cosa es una
+        # decision aparte, no un efecto colateral de poder consultar tickets.
+        cmd = [
+            settings.CLAUDE_CLI_PATH,
+            "--print",
+            # Con `=` y no como argumento suelto: la opcion es variadica y en la
+            # forma separada se tragaba el prompt como si fuera otra herramienta,
+            # dejando a Claude sin nada que responder.
+            "--allowed-tools=Read,Glob,Grep,Bash(bin/moly *),Bash(git log *),Bash(git status)",
+            prompt,
+        ]
         cwd = target_repo or settings.REPOS_BASE_DIR
 
         # create_subprocess_exec da el MISMO ENOENT tanto si falta el binario
@@ -143,6 +158,14 @@ class ClaudeOrchestratorService:
                 if not line:
                     break
                 text = line.decode("utf-8", errors="replace")
+
+                # Ruido del CLI, no respuesta de Claude: se mantiene el pipe de
+                # stdin abierto porque por ahi se le inyectan las respuestas del
+                # freno duro, y al no escribir nada al arrancar avisa a los 3 s.
+                # Aparecia como primera linea de todas las conversaciones.
+                if "no stdin data received" in text:
+                    continue
+
                 full_output.append(text)
                 active.logs.append(text)
 
@@ -163,7 +186,11 @@ class ClaudeOrchestratorService:
                     return
 
                 # 2. Detección de Freno Duro (Human-in-the-Loop)
-                if hard_stop_question_pattern.search(text) or "¿" in text:
+                # El «o "¿" in text» que habia aqui paraba la tarea en cuanto
+                # Claude escribiera CUALQUIER pregunta en español —incluida una
+                # retorica dentro de su propia respuesta—, dejandola bloqueada
+                # esperando a alguien. Se queda solo el patron explicito.
+                if hard_stop_question_pattern.search(text):
                     active.is_waiting_human = True
                     active.question = text.strip()
                     async with db_session_factory() as session:
