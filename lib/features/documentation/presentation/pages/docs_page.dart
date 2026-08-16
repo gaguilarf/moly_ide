@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:moly_ide/core/theme/app_theme.dart';
+import 'package:moly_ide/core/widgets/texto_markdown.dart';
 import 'package:moly_ide/features/auth/presentation/widgets/boton_cerrar_sesion.dart';
 import 'package:moly_ide/features/documentation/data/models/doc_models.dart';
 import 'package:moly_ide/features/documentation/presentation/cubit/docs_cubit.dart';
@@ -250,14 +251,9 @@ class _DocsPageState extends State<DocsPage> {
             ],
           ),
           const SizedBox(height: 8),
-          SelectableText(
-            s.cuerpo,
-            style: GoogleFonts.outfit(
-              fontSize: 14,
-              color: Colors.white70,
-              height: 1.45,
-            ),
-          ),
+          // Los cuerpos se guardan en markdown, con sus comillas invertidas y
+          // sus listas: como texto plano se leían con las marcas a la vista.
+          TextoMarkdown(s.cuerpo),
           if (s.audiencia != null) ...[
             const SizedBox(height: 10),
             _etiqueta('para ${s.audiencia}', AppTheme.textSecondary),
