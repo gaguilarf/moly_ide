@@ -2,6 +2,13 @@ import 'package:moly_ide/features/claude_agent/data/models/claude_models.dart';
 
 enum ClaudeStateStatus { initial, loading, success, failure }
 
+/// Un turno de la conversación: quién habla y qué dice.
+class TurnoChat {
+  final bool mio;
+  final String texto;
+  const TurnoChat({required this.mio, required this.texto});
+}
+
 /// Estados en los que Claude sigue teniendo la tarea entre manos.
 const kEstadosEnCurso = {'ejecutando', 'bloqueado_esperando_humano'};
 
@@ -62,6 +69,43 @@ class ClaudeState {
     // respuesta entera de Claude desaparecia.
     if (guardado.endsWith(envivo)) return guardado;
     return guardado + envivo;
+  }
+
+  /// Marca los turnos del usuario dentro de la transcripción. La primera forma
+  /// es la actual; la segunda es la que se guardó antes de trocear por turnos,
+  /// y se sigue reconociendo para que las conversaciones viejas no se lean como
+  /// si el usuario hablara desde la burbuja de Claude.
+  static final RegExp _marcaTurno = RegExp(
+    r'\[\[TU\]\]([\s\S]*?)\[\[/TU\]\]|\*\*Tú:\*\*[ \t]*([^\n]*)',
+  );
+
+  /// La conversación troceada: el primer mensaje, y luego lo que ha ido
+  /// diciendo cada uno.
+  ///
+  /// Antes se pintaba todo el registro como UNA burbuja de Claude, así que los
+  /// turnos siguientes del usuario salían dentro de ella —a la izquierda y con
+  /// el «Tú:» delante— en vez de a su lado.
+  List<TurnoChat> turnosDe(ClaudeTaskModel tarea) {
+    final turnos = <TurnoChat>[TurnoChat(mio: true, texto: tarea.prompt)];
+    final salida = salidaDe(tarea);
+
+    var desde = 0;
+    for (final m in _marcaTurno.allMatches(salida)) {
+      final deClaude = salida.substring(desde, m.start).trim();
+      if (deClaude.isNotEmpty) {
+        turnos.add(TurnoChat(mio: false, texto: deClaude));
+      }
+
+      final mio = (m.group(1) ?? m.group(2) ?? '').trim();
+      if (mio.isNotEmpty) turnos.add(TurnoChat(mio: true, texto: mio));
+
+      desde = m.end;
+    }
+
+    final resto = salida.substring(desde).trim();
+    if (resto.isNotEmpty) turnos.add(TurnoChat(mio: false, texto: resto));
+
+    return turnos;
   }
 
   /// La pregunta del freno duro que toca contestar en esta conversación, si la
