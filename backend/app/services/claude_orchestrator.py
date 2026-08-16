@@ -1,4 +1,5 @@
 import asyncio
+import os
 import re
 import json
 import logging
@@ -112,9 +113,52 @@ class ClaudeOrchestratorService:
             # Lanzar subproceso en segundo plano
             asyncio.create_task(self._run_claude_process(task_id, task.prompt, task.target_repo, account, db_session_factory))
 
+    async def _marcar_fallida(self, task_id: UUID, db_session_factory, motivo: str):
+        """Deja la tarea en fallido con el motivo, y lo manda por el WebSocket.
+
+        Sin el aviso, una tarea que muere antes de arrancar no genera ni un solo
+        `task_log`: la app se queda con su «Iniciando tarea...» para siempre.
+        """
+        async with db_session_factory() as session:
+            task = await session.get(ClaudeTask, task_id)
+            if task:
+                task.status = ClaudeTaskStatus.fallido
+                task.execution_logs = motivo
+                await session.commit()
+
+        await self.broadcast_event(
+            "task_log", {"task_id": str(task_id), "chunk": f"\n[ERROR] {motivo}\n"}
+        )
+        await self.broadcast_event(
+            "task_finished", {"task_id": str(task_id), "status": "fallido"}
+        )
+
     async def _run_claude_process(self, task_id: UUID, prompt: str, target_repo: Optional[str], account: ClaudeAccount, db_session_factory):
         cmd = [settings.CLAUDE_CLI_PATH, "--print", prompt]
         cwd = target_repo or settings.REPOS_BASE_DIR
+
+        # create_subprocess_exec da el MISMO ENOENT tanto si falta el binario
+        # como si falta el directorio de trabajo, y el mensaje decia siempre
+        # «Fallo al invocar Claude CLI». Con REPOS_BASE_DIR apuntando a un
+        # directorio inexistente, toda tarea sin repo moria en 150 ms
+        # aparentando que Claude no estaba instalado.
+        if not os.path.isdir(cwd):
+            await self._marcar_fallida(
+                task_id,
+                db_session_factory,
+                f"El directorio de trabajo no existe: {cwd}. "
+                "Creelo o ajuste REPOS_BASE_DIR.",
+            )
+            return
+
+        if not os.path.exists(settings.CLAUDE_CLI_PATH):
+            await self._marcar_fallida(
+                task_id,
+                db_session_factory,
+                f"No se encuentra el CLI de Claude en {settings.CLAUDE_CLI_PATH}. "
+                "Ajuste CLAUDE_CLI_PATH.",
+            )
+            return
 
         try:
             process = await asyncio.create_subprocess_exec(
@@ -125,12 +169,11 @@ class ClaudeOrchestratorService:
                 stderr=asyncio.subprocess.STDOUT,
             )
         except Exception as e:
-            async with db_session_factory() as session:
-                task = await session.get(ClaudeTask, task_id)
-                if task:
-                    task.status = ClaudeTaskStatus.fallido
-                    task.execution_logs = f"Fallo al invocar Claude CLI: {str(e)}"
-                    await session.commit()
+            await self._marcar_fallida(
+                task_id,
+                db_session_factory,
+                f"Fallo al invocar Claude CLI ({' '.join(cmd[:2])}) en {cwd}: {e}",
+            )
             return
 
         active = ActiveClaudeProcess(task_id, process)
