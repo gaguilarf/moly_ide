@@ -50,9 +50,18 @@ class ClaudeState {
   /// quedó guardado. Así una conversación reabierta más tarde sigue teniendo su
   /// contenido aunque el WebSocket no estuviera escuchando cuando ocurrió.
   String salidaDe(ClaudeTaskModel tarea) {
-    final envivo = chunksPorTarea[tarea.id];
-    if (envivo != null && envivo.isNotEmpty) return envivo.join();
-    return tarea.executionLogs ?? '';
+    final guardado = tarea.executionLogs ?? '';
+    final envivo = (chunksPorTarea[tarea.id] ?? const <String>[]).join();
+
+    if (envivo.isEmpty) return guardado;
+
+    // Lo vivo es la COLA del turno en curso, que todavia no se ha guardado; lo
+    // guardado es todo lo anterior. Antes lo vivo GANABA y se tiraba lo
+    // guardado, asi que si la app se perdia el principio del stream —por haber
+    // entrado tarde o por una reconexion— enseñaba solo el ultimo trozo y la
+    // respuesta entera de Claude desaparecia.
+    if (guardado.endsWith(envivo)) return guardado;
+    return guardado + envivo;
   }
 
   /// La pregunta del freno duro que toca contestar en esta conversación, si la

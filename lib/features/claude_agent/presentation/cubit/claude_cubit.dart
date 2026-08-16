@@ -142,10 +142,18 @@ class ClaudeCubit extends Cubit<ClaudeState> {
         }
       }
 
+      // De las tareas que ya no corren, lo guardado es completo: se tira su
+      // cola en vivo para que no se cuente dos veces al concatenarla.
+      final mapa = Map<String, List<String>>.from(state.chunksPorTarea);
+      for (final t in tasks) {
+        if (t.status != 'ejecutando') mapa.remove(t.id);
+      }
+
       emit(
         state.copyWith(
           status: ClaudeStateStatus.success,
           tasks: tasks,
+          chunksPorTarea: mapa,
           // Sin los `clear*`, cuando ya no hay tarea viva se quedaba la
           // anterior en el estado —y su pregunta— para siempre.
           activeTask: active,

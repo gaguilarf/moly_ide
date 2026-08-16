@@ -50,7 +50,10 @@ void main() {
       expect(soloHistorial.salidaDe(vieja), 'salida guardada');
     });
 
-    test('lo que llega en vivo manda sobre lo guardado', () {
+    test('lo que llega en vivo se suma a lo guardado, no lo sustituye', () {
+      // Este test afirmaba lo contrario y estaba mal: lo vivo ganaba y lo
+      // guardado se tiraba, asi que perder el principio del stream borraba de
+      // la pantalla la respuesta entera de Claude.
       final t = _tarea(id: 'a', status: 'ejecutando', logs: 'viejo');
       expect(
         ClaudeState(
@@ -59,7 +62,7 @@ void main() {
             'a': ['nuevo'],
           },
         ).salidaDe(t),
-        'nuevo',
+        'viejonuevo',
       );
     });
   });
@@ -142,6 +145,47 @@ void main() {
       final tras = estado.copyWith(chunksPorTarea: mapa);
       expect(tras.chunksPorTarea.containsKey('hecha'), isFalse);
       expect(tras.chunksPorTarea['viva'], ['a']);
+    });
+  });
+
+  group('Lo guardado no se pierde por lo que llega en vivo', () {
+    test('lo vivo se anade detras de lo guardado, no lo reemplaza', () {
+      final t = _tarea(id: 'a', status: 'ejecutando', logs: 'turno anterior');
+      final estado = ClaudeState(
+        tasks: [t],
+        chunksPorTarea: const {
+          'a': [' y sigo escribiendo'],
+        },
+      );
+      expect(estado.salidaDe(t), 'turno anterior y sigo escribiendo');
+    });
+
+    test('si la app entro tarde, la respuesta guardada sigue estando', () {
+      // Este era el fallo: solo llego el ultimo trozo por WebSocket y la
+      // respuesta entera de Claude desaparecia de la pantalla.
+      final t = _tarea(
+        id: 'a',
+        status: 'ejecutando',
+        logs: 'respuesta larga de Claude',
+      );
+      final estado = ClaudeState(
+        tasks: [t],
+        chunksPorTarea: const {
+          'a': ['**Tu:** y ahora que?'],
+        },
+      );
+      expect(estado.salidaDe(t), contains('respuesta larga de Claude'));
+    });
+
+    test('no se duplica si lo guardado ya termina en lo vivo', () {
+      final t = _tarea(id: 'a', status: 'completado', logs: 'hola mundo');
+      final estado = ClaudeState(
+        tasks: [t],
+        chunksPorTarea: const {
+          'a': [' mundo'],
+        },
+      );
+      expect(estado.salidaDe(t), 'hola mundo');
     });
   });
 }
