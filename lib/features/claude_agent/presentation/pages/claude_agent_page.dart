@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:moly_ide/core/theme/app_theme.dart';
+import 'package:moly_ide/core/widgets/texto_markdown.dart';
 import 'package:moly_ide/features/auth/presentation/widgets/boton_cerrar_sesion.dart';
 import 'package:moly_ide/features/claude_agent/data/models/claude_models.dart';
 import 'package:moly_ide/features/claude_agent/presentation/cubit/claude_cubit.dart';
@@ -70,7 +71,7 @@ class _ClaudeAgentPageState extends State<ClaudeAgentPage> {
             ),
             const SizedBox(width: 8),
             Text(
-              'Claude Agent (Jetson)',
+              'Claude Agent',
               style: GoogleFonts.outfit(
                 fontWeight: FontWeight.bold,
                 fontSize: 18,
@@ -190,7 +191,7 @@ class _ClaudeAgentPageState extends State<ClaudeAgentPage> {
           _burbuja(
             texto: salida,
             mio: false,
-            monoespaciada: true,
+            markdown: true,
             fallo: tarea.status == 'fallido',
           ),
 
@@ -209,7 +210,7 @@ class _ClaudeAgentPageState extends State<ClaudeAgentPage> {
   Widget _burbuja({
     required String texto,
     required bool mio,
-    bool monoespaciada = false,
+    bool markdown = false,
     bool fallo = false,
   }) {
     return Align(
@@ -231,20 +232,19 @@ class _ClaudeAgentPageState extends State<ClaudeAgentPage> {
                 : (fallo ? const Color(0xFFFF5252) : AppTheme.border),
           ),
         ),
-        child: SelectableText(
-          texto,
-          style: monoespaciada
-              ? GoogleFonts.firaCode(
-                  fontSize: 12,
-                  color: const Color(0xFFE0E0E0),
-                  height: 1.35,
-                )
-              : GoogleFonts.outfit(
+        // Lo que responde Claude viene en markdown; lo que escribes tú es
+        // texto tal cual y se deja como está, para que unos asteriscos que
+        // hayas escrito a propósito no desaparezcan al pintarlos.
+        child: markdown
+            ? TextoMarkdown(texto, colorTexto: const Color(0xFFE0E0E0))
+            : SelectableText(
+                texto,
+                style: GoogleFonts.outfit(
                   fontSize: 14,
                   color: Colors.white,
                   height: 1.35,
                 ),
-        ),
+              ),
       ),
     );
   }
