@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:dio/dio.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:moly_ide/core/api/orchestrator_api_client.dart';
 import 'package:moly_ide/core/api/websocket_service.dart';
@@ -64,6 +65,62 @@ class ClaudeCubit extends Cubit<ClaudeState> {
   /// Cambia la conversación que se está mirando (la lista del botón flotante).
   void abrirConversacion(String taskId) =>
       emit(state.copyWith(conversacionAbierta: taskId));
+
+  /// Borra una conversación. El servidor se niega con 409 si la tarea sigue
+  /// viva, porque su subproceso todavía está escribiendo en la fila.
+  Future<String?> borrarConversacion(String taskId) async {
+    try {
+      await apiClient.dio.delete('/claude/tasks/$taskId');
+      _olvidar([taskId]);
+      await loadDashboardData();
+      return null;
+    } catch (e) {
+      return _detalle(e);
+    }
+  }
+
+  /// Borra de golpe las conversaciones ya cerradas (completadas y fallidas).
+  Future<String?> borrarTerminadas() async {
+    try {
+      final terminadas = state.tasks
+          .where((t) => !kEstadosEnCurso.contains(t.status))
+          .map((t) => t.id)
+          .toList();
+
+      await apiClient.dio.delete('/claude/tasks/terminadas');
+      _olvidar(terminadas);
+      await loadDashboardData();
+      return null;
+    } catch (e) {
+      return _detalle(e);
+    }
+  }
+
+  /// Quita del estado la salida acumulada de las conversaciones borradas y, si
+  /// alguna era la que se estaba mirando, deja de mirarla. Sin esto, la
+  /// pantalla seguiría enseñando el contenido de un chat que ya no existe.
+  void _olvidar(List<String> ids) {
+    final mapa = Map<String, List<String>>.from(state.chunksPorTarea)
+      ..removeWhere((id, _) => ids.contains(id));
+
+    emit(
+      state.copyWith(
+        chunksPorTarea: mapa,
+        clearConversacion: ids.contains(state.conversacionAbierta),
+      ),
+    );
+  }
+
+  /// El backend explica en `detail` por qué se niega a borrar.
+  String _detalle(Object e) {
+    if (e is DioException) {
+      final data = e.response?.data;
+      if (data is Map && data['detail'] is String) return data['detail'];
+      if (e.response != null) return 'HTTP ${e.response?.statusCode}';
+      return 'sin conexión con el Jetson';
+    }
+    return e.toString();
+  }
 
   Future<void> loadDashboardData() async {
     emit(state.copyWith(status: ClaudeStateStatus.loading));
