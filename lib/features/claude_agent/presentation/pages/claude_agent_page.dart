@@ -109,7 +109,6 @@ class _ClaudeAgentPageState extends State<ClaudeAgentPage> {
         },
         builder: (context, state) {
           final conversacion = state.conversacion;
-          final enCurso = state.tareasEnCurso;
 
           return Column(
             children: [
@@ -122,14 +121,16 @@ class _ClaudeAgentPageState extends State<ClaudeAgentPage> {
                           : _buildConversacion(state, conversacion),
                     ),
 
-                    // El flotante de tareas en curso. Va aquí y no como
-                    // floatingActionButton del Scaffold para que quede sobre la
-                    // conversación y no tape la caja de escribir.
-                    if (enCurso.isNotEmpty)
+                    // El flotante. Va aquí y no como floatingActionButton del
+                    // Scaffold para que quede sobre la conversación sin tapar
+                    // la caja de escribir. Se enseña siempre que haya alguna
+                    // conversación, no solo con tareas vivas: si no, a un chat
+                    // terminado no habría por donde volver ni como borrarlo.
+                    if (state.tasks.isNotEmpty)
                       Positioned(
                         right: 16,
                         bottom: 16,
-                        child: _buildFlotanteTareas(context, enCurso),
+                        child: _buildFlotanteTareas(context, state),
                       ),
                   ],
                 ),
@@ -273,19 +274,23 @@ class _ClaudeAgentPageState extends State<ClaudeAgentPage> {
     );
   }
 
-  /// Botón flotante con lo que Claude tiene entre manos. Al pulsarlo, la lista;
-  /// al tocar una, se abre su conversación.
-  Widget _buildFlotanteTareas(
-    BuildContext context,
-    List<ClaudeTaskModel> enCurso,
-  ) {
+  /// Botón flotante: cuántas tareas hay en marcha, y puerta a la lista de
+  /// conversaciones.
+  Widget _buildFlotanteTareas(BuildContext context, ClaudeState state) {
+    final enCurso = state.tareasEnCurso.length;
+
     return FloatingActionButton.extended(
-      heroTag: 'tareas-en-curso',
-      backgroundColor: AppTheme.primaryPurple,
-      onPressed: () => _mostrarTareas(context, enCurso),
-      icon: const Icon(Icons.terminal_rounded, color: Colors.white),
+      heroTag: 'conversaciones',
+      backgroundColor: enCurso > 0
+          ? AppTheme.primaryPurple
+          : AppTheme.surfaceLight,
+      onPressed: () => _mostrarConversaciones(context, state),
+      icon: Icon(
+        enCurso > 0 ? Icons.terminal_rounded : Icons.forum_rounded,
+        color: Colors.white,
+      ),
       label: Text(
-        '${enCurso.length} en curso',
+        enCurso > 0 ? '$enCurso en curso' : '${state.tasks.length} chats',
         style: GoogleFonts.outfit(
           fontWeight: FontWeight.bold,
           color: Colors.white,
@@ -294,62 +299,271 @@ class _ClaudeAgentPageState extends State<ClaudeAgentPage> {
     );
   }
 
-  void _mostrarTareas(BuildContext context, List<ClaudeTaskModel> enCurso) {
+  void _mostrarConversaciones(BuildContext context, ClaudeState state) {
     final cubit = context.read<ClaudeCubit>();
+    final enCurso = state.tareasEnCurso;
+    final anteriores = state.tasks
+        .where((t) => !kEstadosEnCurso.contains(t.status))
+        .toList();
 
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: AppTheme.surface,
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       builder: (hojaCtx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Text(
-                'Tareas en curso en el Jetson',
-                style: GoogleFonts.outfit(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                  color: Colors.white,
+        child: ConstrainedBox(
+          // Sin tope, una lista larga de chats ocuparía la pantalla entera.
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(hojaCtx).size.height * 0.7,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 8, 8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Conversaciones',
+                        style: GoogleFonts.outfit(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                    if (anteriores.isNotEmpty)
+                      TextButton.icon(
+                        onPressed: () {
+                          Navigator.pop(hojaCtx);
+                          _confirmarBorrarTerminadas(
+                            context,
+                            cubit,
+                            anteriores.length,
+                          );
+                        },
+                        icon: const Icon(
+                          Icons.delete_sweep_rounded,
+                          size: 18,
+                          color: Color(0xFFFF5252),
+                        ),
+                        label: Text(
+                          'Borrar terminadas',
+                          style: GoogleFonts.outfit(
+                            fontSize: 12,
+                            color: const Color(0xFFFF5252),
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               ),
-            ),
-            for (final t in enCurso)
-              ListTile(
-                leading: Icon(
-                  t.status == 'bloqueado_esperando_humano'
-                      ? Icons.pause_circle_filled_rounded
-                      : Icons.play_circle_fill_rounded,
-                  color: t.status == 'bloqueado_esperando_humano'
-                      ? const Color(0xFFFF9900)
-                      : AppTheme.accentBlue,
+              Flexible(
+                child: ListView(
+                  shrinkWrap: true,
+                  children: [
+                    if (enCurso.isNotEmpty) _rotulo('En curso'),
+                    for (final t in enCurso)
+                      _filaConversacion(context, hojaCtx, cubit, t, state),
+                    if (anteriores.isNotEmpty) _rotulo('Anteriores'),
+                    for (final t in anteriores)
+                      _filaConversacion(context, hojaCtx, cubit, t, state),
+                  ],
                 ),
-                title: Text(
-                  t.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.outfit(color: Colors.white),
-                ),
-                subtitle: Text(
-                  t.status == 'bloqueado_esperando_humano'
-                      ? 'Esperando tu respuesta'
-                      : 'Ejecutando',
-                  style: GoogleFonts.firaCode(
-                    fontSize: 11,
-                    color: AppTheme.textSecondary,
-                  ),
-                ),
-                onTap: () {
-                  Navigator.pop(hojaCtx);
-                  cubit.abrirConversacion(t.id);
-                },
               ),
-          ],
+            ],
+          ),
         ),
+      ),
+    );
+  }
+
+  Widget _rotulo(String texto) => Padding(
+    padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+    child: Text(
+      texto.toUpperCase(),
+      style: GoogleFonts.firaCode(
+        fontSize: 10,
+        fontWeight: FontWeight.bold,
+        color: AppTheme.textSecondary,
+      ),
+    ),
+  );
+
+  Widget _filaConversacion(
+    BuildContext pageCtx,
+    BuildContext hojaCtx,
+    ClaudeCubit cubit,
+    ClaudeTaskModel t,
+    ClaudeState state,
+  ) {
+    // Solo se protege mientras se ejecuta. Una bloqueada esperando respuesta sí
+    // se puede borrar: si no, una que se quedó esperando algo que nunca llegó
+    // se veía para siempre sin forma de quitarla.
+    final ejecutando = t.status == 'ejecutando';
+    final abierta = state.conversacionAbierta == t.id;
+
+    return ListTile(
+      selected: abierta,
+      selectedTileColor: AppTheme.primaryPurple.withValues(alpha: 0.12),
+      leading: Icon(_iconoDe(t.status), color: _colorDe(t.status)),
+      title: Text(
+        t.title,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: GoogleFonts.outfit(color: Colors.white),
+      ),
+      subtitle: Text(
+        _etiquetaDe(t.status),
+        style: GoogleFonts.firaCode(
+          fontSize: 11,
+          color: AppTheme.textSecondary,
+        ),
+      ),
+      trailing: IconButton(
+        icon: Icon(
+          Icons.delete_outline_rounded,
+          // Una tarea viva no se puede borrar: su subproceso sigue escribiendo.
+          // Se enseña apagada en vez de esconderla, para que se vea que la
+          // opción existe y por qué no está disponible.
+          color: ejecutando
+              ? AppTheme.textSecondary
+              : const Color(0xFFFF5252),
+        ),
+        tooltip: ejecutando
+            ? 'No se puede: se está ejecutando'
+            : 'Borrar conversación',
+        onPressed: ejecutando
+            ? null
+            : () {
+                Navigator.pop(hojaCtx);
+                _confirmarBorrar(pageCtx, cubit, t);
+              },
+      ),
+      onTap: () {
+        Navigator.pop(hojaCtx);
+        cubit.abrirConversacion(t.id);
+      },
+    );
+  }
+
+  static IconData _iconoDe(String status) => switch (status) {
+    'ejecutando' => Icons.play_circle_fill_rounded,
+    'bloqueado_esperando_humano' => Icons.pause_circle_filled_rounded,
+    'fallido' => Icons.error_rounded,
+    'completado' => Icons.check_circle_rounded,
+    _ => Icons.schedule_rounded,
+  };
+
+  static Color _colorDe(String status) => switch (status) {
+    'ejecutando' => AppTheme.accentBlue,
+    'bloqueado_esperando_humano' => const Color(0xFFFF9900),
+    'fallido' => const Color(0xFFFF5252),
+    'completado' => const Color(0xFF00FF66),
+    _ => AppTheme.textSecondary,
+  };
+
+  static String _etiquetaDe(String status) => switch (status) {
+    'ejecutando' => 'Ejecutando',
+    'bloqueado_esperando_humano' => 'Esperando tu respuesta',
+    'fallido' => 'Fallo',
+    'completado' => 'Terminada',
+    _ => 'Pendiente',
+  };
+
+  void _confirmarBorrar(
+    BuildContext context,
+    ClaudeCubit cubit,
+    ClaudeTaskModel t,
+  ) {
+    showDialog<void>(
+      context: context,
+      builder: (dialContext) => AlertDialog(
+        backgroundColor: AppTheme.surface,
+        title: Text(
+          'Borrar conversación',
+          style: GoogleFonts.outfit(
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
+        ),
+        content: Text(
+          'Se borrará «${t.title}» y lo que Claude respondió. No se puede deshacer.',
+          style: GoogleFonts.outfit(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialContext),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(dialContext);
+              final error = await cubit.borrarConversacion(t.id);
+              if (error != null) _avisar(context, error);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFFF5252),
+            ),
+            child: const Text('Borrar'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmarBorrarTerminadas(
+    BuildContext context,
+    ClaudeCubit cubit,
+    int cuantas,
+  ) {
+    showDialog<void>(
+      context: context,
+      builder: (dialContext) => AlertDialog(
+        backgroundColor: AppTheme.surface,
+        title: Text(
+          'Borrar terminadas',
+          style: GoogleFonts.outfit(
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
+        ),
+        content: Text(
+          'Se borrarán $cuantas conversaciones ya cerradas. Las que sigan en '
+          'curso se quedan. No se puede deshacer.',
+          style: GoogleFonts.outfit(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialContext),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(dialContext);
+              final error = await cubit.borrarTerminadas();
+              if (error != null) _avisar(context, error);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFFF5252),
+            ),
+            child: Text('Borrar $cuantas'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _avisar(BuildContext context, String mensaje) {
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(mensaje, style: GoogleFonts.outfit()),
+        backgroundColor: const Color(0xFFFF3366),
       ),
     );
   }

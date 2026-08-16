@@ -108,4 +108,40 @@ void main() {
       expect(estado.preguntaDe(corriendo), isNull);
     });
   });
+
+  group('Borrar conversaciones', () {
+    final estado = ClaudeState(
+      tasks: [
+        _tarea(id: 'viva', status: 'ejecutando'),
+        _tarea(id: 'hecha', status: 'completado'),
+        _tarea(id: 'rota', status: 'fallido'),
+      ],
+      chunksPorTarea: const {
+        'viva': ['a'],
+        'hecha': ['b'],
+      },
+      conversacionAbierta: 'hecha',
+    );
+
+    test('las terminadas son las que no estan en curso', () {
+      final terminadas = estado.tasks
+          .where((t) => !kEstadosEnCurso.contains(t.status))
+          .map((t) => t.id);
+      expect(terminadas, ['hecha', 'rota']);
+    });
+
+    test('al borrar la abierta se deja de mirarla', () {
+      final tras = estado.copyWith(clearConversacion: true);
+      expect(tras.conversacionAbierta, isNull);
+      expect(tras.conversacion, isNull);
+    });
+
+    test('la salida de la borrada se olvida y la otra se queda', () {
+      final mapa = Map<String, List<String>>.from(estado.chunksPorTarea)
+        ..removeWhere((id, _) => ['hecha'].contains(id));
+      final tras = estado.copyWith(chunksPorTarea: mapa);
+      expect(tras.chunksPorTarea.containsKey('hecha'), isFalse);
+      expect(tras.chunksPorTarea['viva'], ['a']);
+    });
+  });
 }

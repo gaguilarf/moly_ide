@@ -2,12 +2,12 @@ import os
 
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from typing import List
 from uuid import UUID
 from backend.app.config import settings
 from backend.app.database import get_db, AsyncSessionLocal
-from backend.app.models.claude import ClaudeTask
+from backend.app.models.claude import ClaudeTask, ClaudeTaskStatus
 from backend.app.schemas.claude import (
     ClaudeTaskCreate,
     ClaudeHumanFeedback,
@@ -67,6 +67,49 @@ async def create_and_run_task(payload: ClaudeTaskCreate, db: AsyncSession = Depe
     # Iniciar la tarea en segundo plano con el orquestador
     await orchestrator_service.start_task(task.id, AsyncSessionLocal)
     return task
+
+
+# Solo se protege `ejecutando`: ahi el subproceso esta escribiendo en la fila y
+# borrarla es tirar la mesa mientras se come.
+#
+# `bloqueado_esperando_humano` SI se puede borrar a proposito: es una tarea
+# parada esperando una respuesta que puede no llegar nunca, y tras un reinicio
+# del servicio su proceso ya no existe. Protegerla dejaba filas zombis que el
+# usuario veia para siempre sin poder quitarlas.
+
+
+# Se declara ANTES que /tasks/{task_id}: si fuera despues, "terminadas" entraria
+# por la ruta parametrizada y fallaria al no ser un UUID.
+@router.delete("/tasks/terminadas")
+async def delete_finished_tasks(db: AsyncSession = Depends(get_db)):
+    """Borra las conversaciones ya cerradas: completadas y fallidas."""
+    res = await db.execute(
+        delete(ClaudeTask).where(
+            ClaudeTask.status.in_(
+                [ClaudeTaskStatus.completado, ClaudeTaskStatus.fallido]
+            )
+        )
+    )
+    await db.commit()
+    return {"borradas": res.rowcount or 0}
+
+
+@router.delete("/tasks/{task_id}")
+async def delete_task(task_id: UUID, db: AsyncSession = Depends(get_db)):
+    """Borra una conversacion. Se niega si la tarea sigue viva."""
+    task = await db.get(ClaudeTask, task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="La conversación ya no existe.")
+
+    if task.status == ClaudeTaskStatus.ejecutando:
+        raise HTTPException(
+            status_code=409,
+            detail="La tarea se está ejecutando: espere a que termine para borrarla.",
+        )
+
+    await db.delete(task)
+    await db.commit()
+    return {"borradas": 1}
 
 
 @router.post("/tasks/{task_id}/respond-hard-stop")
