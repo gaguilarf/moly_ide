@@ -7,10 +7,8 @@ from typing import List
 from uuid import UUID
 from backend.app.config import settings
 from backend.app.database import get_db, AsyncSessionLocal
-from backend.app.models.claude import ClaudeAccount, ClaudeTask, ClaudeAccountStatus
+from backend.app.models.claude import ClaudeTask
 from backend.app.schemas.claude import (
-    ClaudeAccountOut,
-    ClaudeAccountRegister,
     ClaudeTaskCreate,
     ClaudeHumanFeedback,
     ClaudeTaskOut,
@@ -27,35 +25,11 @@ router = APIRouter(prefix="/claude", tags=["Claude Autonomous Engine"])
 ws_router = APIRouter(prefix="/claude", tags=["Claude Autonomous Engine"])
 
 
-@router.get("/accounts", response_model=List[ClaudeAccountOut])
-async def list_claude_accounts(db: AsyncSession = Depends(get_db)):
-    res = await db.execute(select(ClaudeAccount).order_by(ClaudeAccount.is_primary.desc()))
-    return res.scalars().all()
-
-
-@router.post("/accounts", response_model=ClaudeAccountOut)
-async def register_account(payload: ClaudeAccountRegister, db: AsyncSession = Depends(get_db)):
-    account = ClaudeAccount(
-        alias=payload.alias,
-        email=payload.email,
-        session_token_encrypted=payload.session_token,
-        is_primary=payload.is_primary,
-    )
-    db.add(account)
-    await db.commit()
-    await db.refresh(account)
-    return account
-
-
-@router.post("/accounts/{account_id}/reset-quota", response_model=ClaudeAccountOut)
-async def reset_account_quota(account_id: int, db: AsyncSession = Depends(get_db)):
-    account = await db.get(ClaudeAccount, account_id)
-    if not account:
-        raise HTTPException(status_code=404, detail="Cuenta no encontrada")
-    account.status = ClaudeAccountStatus.activa
-    await db.commit()
-    await db.refresh(account)
-    return account
+# Las rutas de /accounts se retiraron: el CLI de Claude guarda UNA sesion en
+# ~/.claude y el orquestador nunca paso credenciales al subproceso, asi que la
+# rotacion entre dos cuentas alternaba etiquetas sobre la misma sesion. Con una
+# sola cuenta, registrar cuentas y resetear cuotas solo prometia algo que no
+# ocurria.
 
 
 @router.get("/tasks", response_model=List[ClaudeTaskOut])

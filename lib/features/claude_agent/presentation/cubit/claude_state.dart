@@ -7,7 +7,6 @@ const kEstadosEnCurso = {'ejecutando', 'bloqueado_esperando_humano'};
 
 class ClaudeState {
   final ClaudeStateStatus status;
-  final List<ClaudeAccountModel> accounts;
   final List<ClaudeTaskModel> tasks;
   final ClaudeTaskModel? activeTask;
 
@@ -26,7 +25,6 @@ class ClaudeState {
 
   const ClaudeState({
     this.status = ClaudeStateStatus.initial,
-    this.accounts = const [],
     this.tasks = const [],
     this.activeTask,
     this.chunksPorTarea = const {},
@@ -70,7 +68,6 @@ class ClaudeState {
 
   ClaudeState copyWith({
     ClaudeStateStatus? status,
-    List<ClaudeAccountModel>? accounts,
     List<ClaudeTaskModel>? tasks,
     ClaudeTaskModel? activeTask,
     bool clearActiveTask = false,
@@ -83,7 +80,6 @@ class ClaudeState {
   }) {
     return ClaudeState(
       status: status ?? this.status,
-      accounts: accounts ?? this.accounts,
       tasks: tasks ?? this.tasks,
       // `clearActiveTask` existe porque con `??` no había forma de volver a
       // null: al terminar la tarea se quedaba pegada la anterior y

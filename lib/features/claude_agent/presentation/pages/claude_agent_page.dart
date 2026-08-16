@@ -113,8 +113,6 @@ class _ClaudeAgentPageState extends State<ClaudeAgentPage> {
 
           return Column(
             children: [
-              _buildAccountsBar(state),
-
               Expanded(
                 child: Stack(
                   children: [
@@ -352,68 +350,6 @@ class _ClaudeAgentPageState extends State<ClaudeAgentPage> {
               ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildAccountsBar(ClaudeState state) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      color: AppTheme.surface,
-      child: Row(
-        children: [
-          Text(
-            'CUENTAS:',
-            style: GoogleFonts.firaCode(
-              fontSize: 11,
-              fontWeight: FontWeight.bold,
-              color: AppTheme.textSecondary,
-            ),
-          ),
-          const SizedBox(width: 8),
-          if (state.accounts.isEmpty)
-            Text(
-              'Sin cuentas registradas',
-              style: GoogleFonts.outfit(
-                fontSize: 12,
-                color: AppTheme.textSecondary,
-              ),
-            )
-          else
-            Expanded(
-              child: Wrap(
-                spacing: 8,
-                children: state.accounts.map((acc) {
-                  final isActive = acc.status == 'activa';
-                  final isPrimary = acc.isPrimary;
-                  return Chip(
-                    visualDensity: VisualDensity.compact,
-                    backgroundColor: isActive
-                        ? AppTheme.surfaceLight
-                        : const Color(0xFFFF3366).withOpacity(0.2),
-                    avatar: Icon(
-                      isActive
-                          ? Icons.check_circle_rounded
-                          : Icons.warning_rounded,
-                      size: 14,
-                      color: isActive
-                          ? const Color(0xFF00FF66)
-                          : const Color(0xFFFF3366),
-                    ),
-                    label: Text(
-                      '${acc.alias}${isPrimary ? ' (P)' : ' (S)'}',
-                      style: GoogleFonts.firaCode(
-                        fontSize: 11,
-                        color: isActive
-                            ? Colors.white
-                            : const Color(0xFFFF3366),
-                      ),
-                    ),
-                  );
-                }).toList(),
-              ),
-            ),
-        ],
       ),
     );
   }
