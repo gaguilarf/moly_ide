@@ -79,6 +79,25 @@ class ClaudeOrchestratorService:
             task.status = ClaudeTaskStatus.ejecutando
             await session.commit()
             target_repo = task.target_repo
+            transcripcion = task.execution_logs or ""
+            primer_mensaje = task.prompt
+
+        cwd = target_repo or settings.REPOS_BASE_DIR
+        hay_sesion = self._hay_sesion(task_id, cwd)
+
+        # Si la sesion del CLI sigue viva se retoma y Claude ya recuerda. Si no
+        # —se limpio, o la conversacion es de otra maquina— se le vuelve a
+        # contar lo hablado, que es como funcionan los chats sin estado.
+        #
+        # Hace falta comprobarlo ANTES: `--resume` de una sesion que no existe
+        # responde «No conversation found with session ID» y sale con codigo 0,
+        # asi que la tarea quedaba «completada» con ese texto por respuesta.
+        if hay_sesion:
+            prompt = mensaje
+        else:
+            prompt = self._prompt_con_contexto(
+                primer_mensaje, transcripcion, mensaje
+            )
 
         # El turno del usuario se mete en la transcripcion antes de responder,
         # para que la conversacion se lea en orden al reabrirla.
@@ -92,8 +111,40 @@ class ClaudeOrchestratorService:
 
         asyncio.create_task(
             self._run_claude_process(
-                task_id, mensaje, target_repo, db_session_factory, reanudar=True
+                task_id, prompt, target_repo, db_session_factory, reanudar=hay_sesion
             )
+        )
+
+    def _hay_sesion(self, task_id: UUID, cwd: str) -> bool:
+        """¿Sigue el CLI guardando esta conversacion?
+
+        Cada sesion es un `.jsonl` bajo ~/.claude/projects/<cwd con / por ->/.
+        """
+        carpeta = os.path.expanduser(
+            os.path.join("~/.claude/projects", cwd.replace("/", "-"))
+        )
+        return os.path.isfile(os.path.join(carpeta, f"{task_id}.jsonl"))
+
+    # Una transcripcion larga no cabe entera y tampoco hace falta: lo reciente
+    # es lo que da contexto.
+    LIMITE_CONTEXTO = 8000
+
+    def _prompt_con_contexto(
+        self, primer_mensaje: str, transcripcion: str, mensaje: str
+    ) -> str:
+        """Rehace el hilo dentro del prompt cuando la sesion del CLI ya no esta."""
+        hablado = transcripcion.replace("[[TU]]", "\n\nYo: ").replace("[[/TU]]", "\n\n")
+        if len(hablado) > self.LIMITE_CONTEXTO:
+            hablado = "[...]\n" + hablado[-self.LIMITE_CONTEXTO :]
+
+        return (
+            "Retomamos una conversacion anterior. Esto es lo que llevamos "
+            "hablado:\n\n"
+            "--- CONVERSACION PREVIA ---\n"
+            f"Yo: {primer_mensaje}\n\n"
+            f"{hablado}\n"
+            "--- FIN DE LA CONVERSACION PREVIA ---\n\n"
+            f"Y ahora te digo: {mensaje}"
         )
 
     async def _anadir_a_log(self, task_id: UUID, texto: str, db_session_factory):
