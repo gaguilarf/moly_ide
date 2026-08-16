@@ -26,15 +26,30 @@ class _ClaudeAgentPageState extends State<ClaudeAgentPage> {
     context.read<ClaudeCubit>().loadDashboardData();
   }
 
+  /// Sigue el final de la conversación, pero solo si ya se estaba mirando el
+  /// final.
+  ///
+  /// La app se refresca sola cada pocos segundos mientras Claude responde, y
+  /// esto saltaba en cada ciclo: al arrastrar hacia arriba para releer algo,
+  /// te devolvía abajo de un tirón.
+  ///
+  /// La comprobación se hace AQUÍ y no dentro del callback: en este momento la
+  /// posición es todavía la de antes de repintar, así que dice de verdad dónde
+  /// estabas. Medida después, un trozo largo recién llegado la falsearía.
   void _scrollToBottom() {
+    if (!_logScrollController.hasClients) return;
+
+    final posicion = _logScrollController.position;
+    final pegadoAlFinal = posicion.maxScrollExtent - posicion.pixels < 150;
+    if (!pegadoAlFinal) return;
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_logScrollController.hasClients) {
-        _logScrollController.animateTo(
-          _logScrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeOut,
-        );
-      }
+      if (!_logScrollController.hasClients) return;
+      _logScrollController.animateTo(
+        _logScrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+      );
     });
   }
 
