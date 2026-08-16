@@ -1,8 +1,12 @@
+import logging
+
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
+from sqlalchemy import func, update
 from backend.app.config import settings
-from backend.app.database import engine, Base
+from backend.app.database import engine, Base, AsyncSessionLocal
+from backend.app.models.claude import ClaudeTask, ClaudeTaskStatus
 from backend.app.routers import auth, tickets, claude, infra, backups, docs, explorer, registro, documentacion, system
 from backend.app.security import require_actor
 
@@ -15,6 +19,35 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         # Los esquemas y tipos enumerados ya existen en PostgreSQL
         pass
+
+    # Ninguna tarea sobrevive a un reinicio: sus subprocesos mueren con este
+    # servicio. Las que quedaron en `ejecutando` son zombis —la app las enseña
+    # corriendo para siempre y se niega a borrarlas, porque borrar una viva es
+    # tirar la mesa mientras se come—. Se cierran al arrancar, diciendo por que.
+    try:
+        async with AsyncSessionLocal() as session:
+            res = await session.execute(
+                update(ClaudeTask)
+                .where(ClaudeTask.status == ClaudeTaskStatus.ejecutando)
+                .values(
+                    status=ClaudeTaskStatus.fallido,
+                    execution_logs=func.concat(
+                        func.coalesce(ClaudeTask.execution_logs, ""),
+                        "\n\n[Interrumpida: el servicio se reinicio mientras "
+                        "Claude respondia.]\n",
+                    ),
+                )
+            )
+            await session.commit()
+            if res.rowcount:
+                logging.getLogger("moly").warning(
+                    "Cerradas %s tareas que quedaron ejecutando de un arranque "
+                    "anterior.",
+                    res.rowcount,
+                )
+    except Exception:
+        logging.getLogger("moly").exception("No se pudieron cerrar las tareas zombis.")
+
     yield
     await engine.dispose()
 

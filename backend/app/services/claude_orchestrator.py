@@ -93,14 +93,14 @@ class ClaudeOrchestratorService:
         )
 
     async def _anadir_a_log(self, task_id: UUID, texto: str, db_session_factory):
+        # Se guarda pero NO se emite por el WebSocket: la app recarga la tarea
+        # justo despues de pedir el turno, asi que ya lo recibe por ahi.
+        # Emitirlo ademas lo pintaba dos veces.
         async with db_session_factory() as session:
             task = await session.get(ClaudeTask, task_id)
             if task:
                 task.execution_logs = (task.execution_logs or "") + texto
                 await session.commit()
-        await self.broadcast_event(
-            "task_log", {"task_id": str(task_id), "chunk": texto}
-        )
 
     async def _run_claude_process(
         self,
