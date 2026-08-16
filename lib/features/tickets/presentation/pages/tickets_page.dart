@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:moly_ide/core/theme/app_theme.dart';
+import 'package:moly_ide/features/auth/presentation/widgets/boton_cerrar_sesion.dart';
 import 'package:moly_ide/features/claude_agent/presentation/cubit/claude_cubit.dart';
 import 'package:moly_ide/features/tickets/data/models/ticket_model.dart';
 import 'package:moly_ide/features/tickets/presentation/cubit/tickets_cubit.dart';
@@ -318,6 +319,7 @@ class _TicketsPageState extends State<TicketsPage>
             tooltip: 'Recargar',
             onPressed: () => context.read<TicketsCubit>().loadBoard(),
           ),
+          const BotonCerrarSesion(),
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(

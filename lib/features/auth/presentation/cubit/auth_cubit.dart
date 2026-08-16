@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:dio/dio.dart';
@@ -16,8 +17,34 @@ class AuthCubit extends Cubit<AuthState> {
   static const String vaultPasswordKey = 'vault_saved_password';
   static const String vaultRememberKey = 'vault_remember_credentials';
 
+  late final StreamSubscription<void> _sesionCaducada;
+
   AuthCubit({required this.apiClient, required this.secureStorage})
-    : super(const AuthState());
+    : super(const AuthState()) {
+    _sesionCaducada = apiClient.sesionCaducada.listen(
+      (_) => _cerrarPorTokenRechazado(),
+    );
+  }
+
+  /// El servidor rechazó el token (401): la sesión se cierra sola y se vuelve a
+  /// la pantalla de acceso. Se conserva el baúl, así que volver a entrar es un
+  /// toque.
+  Future<void> _cerrarPorTokenRechazado() async {
+    // Si ya no había sesión, no hay nada que cerrar: un 401 suelto mientras se
+    // está en el acceso pisaría el error que esa pantalla ya está enseñando.
+    if (state.status != AuthStatus.authenticated) return;
+
+    await logout();
+    emit(
+      state.copyWith(errorMessage: 'Tu sesión ha caducado. Vuelve a entrar.'),
+    );
+  }
+
+  @override
+  Future<void> close() {
+    _sesionCaducada.cancel();
+    return super.close();
+  }
 
   /// Clave del baúl anterior, cuando se entraba con el correo. Se borra al
   /// arrancar: al cambiar de clave, el correo Y LA CONTRASEÑA de antes se
