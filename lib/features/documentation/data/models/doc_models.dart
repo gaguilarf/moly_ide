@@ -1,20 +1,72 @@
-class DocItemModel {
-  final String title;
-  final String path;
-  final String category;
-  final String? contentSnippet;
+/// Documentación viva: temas con secciones, servidos por la API de Moly desde
+/// el Jetson (`/documentacion/temas`).
+///
+/// Sustituye al recorrido de ficheros `.md` que hacía `/docs`: aquello leía un
+/// directorio del disco que ya no existe —era `docs_brittanygroup`, retirado—,
+/// así que la pestaña salía siempre vacía.
+class TemaDocModel {
+  final int id;
+  final String slug;
+  final String titulo;
+  final String tipo;
+  final String? resumen;
+  final String? responsable;
+  final String? proyecto;
+  final String estado;
+  final int seccionesVisibles;
 
-  DocItemModel({
-    required this.title,
-    required this.path,
-    required this.category,
-    this.contentSnippet,
+  const TemaDocModel({
+    required this.id,
+    required this.slug,
+    required this.titulo,
+    required this.tipo,
+    this.resumen,
+    this.responsable,
+    this.proyecto,
+    required this.estado,
+    required this.seccionesVisibles,
   });
 
-  factory DocItemModel.fromJson(Map<String, dynamic> json) => DocItemModel(
-        title: json['title'] ?? '',
-        path: json['path'] ?? '',
-        category: json['category'] ?? 'General',
-        contentSnippet: json['content_snippet'],
+  factory TemaDocModel.fromJson(Map<String, dynamic> json) => TemaDocModel(
+    id: json['id'] ?? 0,
+    slug: json['slug'] ?? '',
+    titulo: json['titulo'] ?? '',
+    tipo: json['tipo'] ?? '',
+    resumen: json['resumen'],
+    responsable: json['responsable'],
+    proyecto: json['proyecto'],
+    estado: json['estado'] ?? 'activo',
+    seccionesVisibles: json['secciones_visibles'] ?? 0,
+  );
+}
+
+class SeccionDocModel {
+  final int id;
+  final int orden;
+  final String titulo;
+  final String cuerpo;
+  final String? audiencia;
+
+  /// `sin_verificar`, `fresca`, `caduca`… Es lo que dice si el contenido se
+  /// puede creer todavía, así que se enseña junto al título.
+  final String? frescura;
+
+  const SeccionDocModel({
+    required this.id,
+    required this.orden,
+    required this.titulo,
+    required this.cuerpo,
+    this.audiencia,
+    this.frescura,
+  });
+
+  factory SeccionDocModel.fromJson(Map<String, dynamic> json) =>
+      SeccionDocModel(
+        id: json['id'] ?? 0,
+        orden: json['orden'] ?? 0,
+        titulo: json['titulo'] ?? '',
+        cuerpo: json['cuerpo'] ?? '',
+        audiencia: json['audiencia'],
+        frescura: json['frescura'],
       );
 }

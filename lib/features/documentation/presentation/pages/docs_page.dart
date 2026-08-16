@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:moly_ide/core/theme/app_theme.dart';
 import 'package:moly_ide/features/auth/presentation/widgets/boton_cerrar_sesion.dart';
@@ -9,6 +8,7 @@ import 'package:moly_ide/features/documentation/presentation/cubit/docs_cubit.da
 import 'package:moly_ide/features/documentation/presentation/cubit/docs_state.dart';
 import 'package:moly_ide/features/updates/presentation/widgets/update_dialog.dart';
 
+/// Documentación viva: la lista de temas y, al tocar uno, sus secciones.
 class DocsPage extends StatefulWidget {
   const DocsPage({super.key});
 
@@ -17,259 +17,278 @@ class DocsPage extends StatefulWidget {
 }
 
 class _DocsPageState extends State<DocsPage> {
-  String _searchQuery = '';
-
   @override
   void initState() {
     super.initState();
     context.read<DocsCubit>().loadDocuments();
   }
 
-  void _openDocumentViewer(BuildContext context, DocItemModel doc) {
-    context.read<DocsCubit>().loadDocumentContent(doc.path);
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: AppTheme.background,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (bSheetCtx) {
-        return DraggableScrollableSheet(
-          initialChildSize: 0.85,
-          maxChildSize: 0.95,
-          minChildSize: 0.5,
-          expand: false,
-          builder: (context, scrollController) {
-            return BlocBuilder<DocsCubit, DocsState>(
-              builder: (context, state) {
-                return Column(
-                  children: [
-                    // Handle bar
-                    Container(
-                      margin: const EdgeInsets.symmetric(vertical: 8),
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: AppTheme.textSecondary.withOpacity(0.4),
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16.0,
-                        vertical: 8.0,
-                      ),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              doc.title,
-                              style: GoogleFonts.outfit(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 18,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ),
-                          IconButton(
-                            icon: const Icon(
-                              Icons.close_rounded,
-                              color: AppTheme.textSecondary,
-                            ),
-                            onPressed: () => Navigator.pop(context),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const Divider(color: AppTheme.border, height: 1),
-                    Expanded(
-                      child: state.selectedDocContent == null
-                          ? const Center(
-                              child: CircularProgressIndicator(
-                                color: AppTheme.accentBlue,
-                              ),
-                            )
-                          : Markdown(
-                              controller: scrollController,
-                              data: state.selectedDocContent!,
-                              styleSheet: MarkdownStyleSheet(
-                                p: GoogleFonts.outfit(
-                                  color: Colors.white70,
-                                  fontSize: 14,
-                                  height: 1.4,
-                                ),
-                                h1: GoogleFonts.outfit(
-                                  color: Colors.white,
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                                h2: GoogleFonts.outfit(
-                                  color: AppTheme.accentBlue,
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                                h3: GoogleFonts.outfit(
-                                  color: AppTheme.primaryPurple,
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                                code: GoogleFonts.firaCode(
-                                  backgroundColor: AppTheme.surfaceLight,
-                                  color: const Color(0xFF00FF66),
-                                ),
-                                codeblockDecoration: BoxDecoration(
-                                  color: const Color(0xFF0D0D12),
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(color: AppTheme.border),
-                                ),
-                              ),
-                            ),
-                    ),
-                  ],
-                );
-              },
+  @override
+  Widget build(BuildContext context) {
+    return BlocConsumer<DocsCubit, DocsState>(
+      listener: (context, state) {
+        if (state.errorMessage != null) {
+          ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(
+              SnackBar(
+                content: Text(state.errorMessage!, style: GoogleFonts.outfit()),
+                backgroundColor: const Color(0xFFFF3366),
+              ),
             );
-          },
+        }
+      },
+      builder: (context, state) {
+        final abierto = state.temaAbierto;
+
+        return Scaffold(
+          backgroundColor: AppTheme.background,
+          appBar: AppBar(
+            backgroundColor: AppTheme.surface,
+            // Dentro de un tema, la flecha vuelve a la lista. Es una pestaña,
+            // no una ruta, así que no hay Navigator del que tirar.
+            leading: abierto == null
+                ? null
+                : IconButton(
+                    icon: const Icon(Icons.arrow_back_rounded),
+                    tooltip: 'Volver a los temas',
+                    onPressed: () => context.read<DocsCubit>().volverALista(),
+                  ),
+            title: Text(
+              abierto?.titulo ?? 'Documentación',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.outfit(
+                fontWeight: FontWeight.bold,
+                fontSize: 18,
+              ),
+            ),
+            actions: [
+              IconButton(
+                icon: const Icon(
+                  Icons.system_update_rounded,
+                  color: AppTheme.accentBlue,
+                ),
+                tooltip: 'Actualizar App',
+                onPressed: () => UpdateDialog.show(context),
+              ),
+              IconButton(
+                icon: const Icon(
+                  Icons.refresh_rounded,
+                  color: AppTheme.accentBlue,
+                ),
+                tooltip: 'Recargar',
+                onPressed: () => context.read<DocsCubit>().loadDocuments(),
+              ),
+              const BotonCerrarSesion(),
+            ],
+          ),
+          body: abierto == null ? _lista(state) : _tema(state, abierto),
         );
       },
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppTheme.background,
-      appBar: AppBar(
-        backgroundColor: AppTheme.surface,
-        title: Text(
-          'Documentación Viva',
-          style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 18),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(
-              Icons.system_update_rounded,
-              color: AppTheme.accentBlue,
+  Widget _lista(DocsState state) {
+    if (state.status == DocsStatus.loading && state.temas.isEmpty) {
+      return const Center(
+        child: CircularProgressIndicator(color: AppTheme.accentBlue),
+      );
+    }
+
+    if (state.temas.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Text(
+            state.status == DocsStatus.failure
+                ? 'No se pudo cargar la documentación.\nTira de recargar cuando el Jetson responda.'
+                : 'Todavía no hay ningún tema documentado.',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.outfit(
+              color: AppTheme.textSecondary,
+              fontSize: 13,
             ),
-            tooltip: 'Actualizar App',
-            onPressed: () => UpdateDialog.show(context),
           ),
-          IconButton(
-            icon: const Icon(Icons.refresh_rounded, color: AppTheme.accentBlue),
-            tooltip: 'Recargar',
-            onPressed: () => context.read<DocsCubit>().loadDocuments(),
-          ),
-          const BotonCerrarSesion(),
-        ],
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: () => context.read<DocsCubit>().loadDocuments(),
+      color: AppTheme.accentBlue,
+      backgroundColor: AppTheme.surface,
+      child: ListView.separated(
+        padding: const EdgeInsets.all(12),
+        itemCount: state.temas.length,
+        separatorBuilder: (_, _) => const SizedBox(height: 8),
+        itemBuilder: (context, i) => _fichaTema(state.temas[i]),
       ),
-      body: BlocBuilder<DocsCubit, DocsState>(
-        builder: (context, state) {
-          if (state.status == DocsStatus.loading) {
-            return const Center(
-              child: CircularProgressIndicator(color: AppTheme.accentBlue),
-            );
-          }
+    );
+  }
 
-          final filteredDocs = state.documents.where((d) {
-            final q = _searchQuery.toLowerCase();
-            return d.title.toLowerCase().contains(q) ||
-                d.category.toLowerCase().contains(q);
-          }).toList();
-
-          return Column(
-            children: [
-              // Search Bar
-              Padding(
-                padding: const EdgeInsets.all(12.0),
-                child: TextField(
-                  style: const TextStyle(color: Colors.white),
-                  decoration: InputDecoration(
-                    hintText: 'Buscar documentos, guías y ADRs...',
-                    hintStyle: GoogleFonts.outfit(
-                      fontSize: 13,
-                      color: AppTheme.textSecondary,
-                    ),
-                    prefixIcon: const Icon(
-                      Icons.search_rounded,
-                      color: AppTheme.accentBlue,
-                      size: 20,
-                    ),
-                    filled: true,
-                    fillColor: AppTheme.surface,
-                    isDense: true,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide: BorderSide(
-                        color: AppTheme.border.withOpacity(0.6),
-                      ),
+  Widget _fichaTema(TemaDocModel t) {
+    return InkWell(
+      onTap: () => context.read<DocsCubit>().abrirTema(t),
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: AppTheme.surface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppTheme.border),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    t.titulo,
+                    style: GoogleFonts.outfit(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
                     ),
                   ),
-                  onChanged: (val) => setState(() => _searchQuery = val),
+                ),
+                _etiqueta(t.tipo, AppTheme.accentBlue),
+              ],
+            ),
+            if (t.resumen != null && t.resumen!.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Text(
+                t.resumen!,
+                style: GoogleFonts.outfit(
+                  fontSize: 13,
+                  color: Colors.white70,
+                  height: 1.35,
                 ),
               ),
-
-              // Docs List
-              Expanded(
-                child: filteredDocs.isEmpty
-                    ? Center(
-                        child: Text(
-                          'No se encontraron documentos.',
-                          style: GoogleFonts.outfit(
-                            color: AppTheme.textSecondary,
-                          ),
-                        ),
-                      )
-                    : ListView.builder(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        itemCount: filteredDocs.length,
-                        itemBuilder: (context, idx) {
-                          final doc = filteredDocs[idx];
-                          return Card(
-                            margin: const EdgeInsets.only(bottom: 8),
-                            color: AppTheme.surface,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                              side: BorderSide(
-                                color: AppTheme.border.withOpacity(0.5),
-                              ),
-                            ),
-                            child: ListTile(
-                              leading: const Icon(
-                                Icons.description_rounded,
-                                color: AppTheme.primaryPurple,
-                                size: 22,
-                              ),
-                              title: Text(
-                                doc.title,
-                                style: GoogleFonts.outfit(
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 14,
-                                  color: Colors.white,
-                                ),
-                              ),
-                              subtitle: Text(
-                                '${doc.category} • ${doc.path}',
-                                style: GoogleFonts.firaCode(
-                                  fontSize: 11,
-                                  color: AppTheme.textSecondary,
-                                ),
-                              ),
-                              trailing: const Icon(
-                                Icons.chevron_right_rounded,
-                                color: AppTheme.textSecondary,
-                                size: 20,
-                              ),
-                              onTap: () => _openDocumentViewer(context, doc),
-                            ),
-                          );
-                        },
-                      ),
-              ),
             ],
-          );
-        },
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                if (t.proyecto != null)
+                  _etiqueta(t.proyecto!, AppTheme.primaryPurple),
+                if (t.responsable != null) ...[
+                  const SizedBox(width: 6),
+                  _etiqueta(t.responsable!, AppTheme.textSecondary),
+                ],
+                const Spacer(),
+                Text(
+                  '${t.seccionesVisibles} secciones',
+                  style: GoogleFonts.firaCode(
+                    fontSize: 11,
+                    color: AppTheme.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _tema(DocsState state, TemaDocModel tema) {
+    if (state.cargandoTema) {
+      return const Center(
+        child: CircularProgressIndicator(color: AppTheme.accentBlue),
+      );
+    }
+
+    if (state.secciones.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Text(
+            'Este tema todavía no tiene secciones.',
+            style: GoogleFonts.outfit(
+              color: AppTheme.textSecondary,
+              fontSize: 13,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return ListView.separated(
+      padding: const EdgeInsets.all(12),
+      itemCount: state.secciones.length,
+      separatorBuilder: (_, _) => const SizedBox(height: 10),
+      itemBuilder: (context, i) => _fichaSeccion(state.secciones[i]),
+    );
+  }
+
+  Widget _fichaSeccion(SeccionDocModel s) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppTheme.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppTheme.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  s.titulo,
+                  style: GoogleFonts.outfit(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+              if (s.frescura != null) _etiquetaFrescura(s.frescura!),
+            ],
+          ),
+          const SizedBox(height: 8),
+          SelectableText(
+            s.cuerpo,
+            style: GoogleFonts.outfit(
+              fontSize: 14,
+              color: Colors.white70,
+              height: 1.45,
+            ),
+          ),
+          if (s.audiencia != null) ...[
+            const SizedBox(height: 10),
+            _etiqueta('para ${s.audiencia}', AppTheme.textSecondary),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// La frescura dice si el contenido se puede creer todavía, así que va en
+  /// color y no como texto suelto.
+  Widget _etiquetaFrescura(String frescura) {
+    final color = switch (frescura) {
+      'fresca' => const Color(0xFF00FF66),
+      'caduca' => const Color(0xFFFF5252),
+      _ => const Color(0xFFFFB74D),
+    };
+    return _etiqueta(frescura.replaceAll('_', ' '), color);
+  }
+
+  Widget _etiqueta(String texto, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color),
+      ),
+      child: Text(
+        texto,
+        style: GoogleFonts.firaCode(fontSize: 10, color: color),
       ),
     );
   }
