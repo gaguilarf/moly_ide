@@ -125,6 +125,31 @@ class ClaudeCubit extends Cubit<ClaudeState> {
     return e.toString();
   }
 
+  Timer? _refresco;
+
+  /// Refresca mientras haya algo corriendo.
+  ///
+  /// El WebSocket es el camino rápido, pero si se cae —y tras un reinicio del
+  /// servidor se cae— la conversación se quedaba en blanco aunque Claude
+  /// estuviera escribiendo. El servidor guarda ya la respuesta según llega, así
+  /// que recargar cada pocos segundos la enseña igual. De paso se reintenta la
+  /// conexión, que es lo que la devuelve al camino rápido.
+  void _vigilar(List<ClaudeTaskModel> tasks) {
+    final corriendo = tasks.any((t) => t.status == 'ejecutando');
+
+    if (!corriendo) {
+      _refresco?.cancel();
+      _refresco = null;
+      return;
+    }
+
+    unawaited(wsService.connect());
+    _refresco ??= Timer.periodic(
+      const Duration(seconds: 3),
+      (_) => loadDashboardData(),
+    );
+  }
+
   Future<void> loadDashboardData() async {
     emit(state.copyWith(status: ClaudeStateStatus.loading));
     try {
@@ -142,12 +167,11 @@ class ClaudeCubit extends Cubit<ClaudeState> {
         }
       }
 
-      // De las tareas que ya no corren, lo guardado es completo: se tira su
-      // cola en vivo para que no se cuente dos veces al concatenarla.
-      final mapa = Map<String, List<String>>.from(state.chunksPorTarea);
-      for (final t in tasks) {
-        if (t.status != 'ejecutando') mapa.remove(t.id);
-      }
+      // Al recargar, lo guardado ya incluye lo que se habia recibido en vivo
+      // —el servidor lo va volcando—, asi que la cola se tira entera. Lo que
+      // llegue por WebSocket a partir de ahora se suma sobre esta base, y no
+      // se cuenta dos veces.
+      final mapa = <String, List<String>>{};
 
       emit(
         state.copyWith(
@@ -162,6 +186,8 @@ class ClaudeCubit extends Cubit<ClaudeState> {
           clearQuestion: active?.pendingQuestion == null,
         ),
       );
+
+      _vigilar(tasks);
     } catch (e) {
       emit(
         state.copyWith(
@@ -222,6 +248,7 @@ class ClaudeCubit extends Cubit<ClaudeState> {
 
   @override
   Future<void> close() {
+    _refresco?.cancel();
     _wsSubscription?.cancel();
     return super.close();
   }
