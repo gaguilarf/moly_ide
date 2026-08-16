@@ -25,7 +25,10 @@ class WebSocketService {
   /// [_esperaMaxima]. Reintentar siempre a los 5 s tenía al movil llamando al
   /// Jetson doce veces por minuto mientras estuviera apagado.
   static const Duration _esperaBase = Duration(seconds: 5);
-  static const Duration _esperaMaxima = Duration(minutes: 2);
+  // Dos minutos era demasiado: tras varios reinicios del servidor la espera
+  // crecia hasta ahi y la app se quedaba sin recibir nada un buen rato,
+  // pareciendo que Claude no respondia.
+  static const Duration _esperaMaxima = Duration(seconds: 20);
 
   /// Cierre limpio (1000) y rechazo de credenciales (1008). En los dos casos
   /// insistir es inútil: el servidor ya dijo lo que tenía que decir y con el

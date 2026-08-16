@@ -194,6 +194,27 @@ class ClaudeOrchestratorService:
         trozos: list[str] = []
         fallo_declarado: Optional[str] = None
 
+        # Lo recibido se va guardando cada pocos segundos, no solo al terminar.
+        # Sin esto, la unica forma de ver una respuesta en curso era el
+        # WebSocket: si el cliente lo tenia caido —tras un reinicio del
+        # servicio, por ejemplo— la pantalla se quedaba vacia aunque Claude
+        # estuviera escribiendo. Ahora recargar la conversacion basta.
+        guardado_hasta = 0
+        proximo_volcado = asyncio.get_event_loop().time()
+
+        async def volcar():
+            nonlocal guardado_hasta, proximo_volcado
+            pendiente = "".join(trozos[guardado_hasta:])
+            if not pendiente:
+                return
+            async with db_session_factory() as session:
+                task = await session.get(ClaudeTask, task_id)
+                if task:
+                    task.execution_logs = (task.execution_logs or "") + pendiente
+                    await session.commit()
+            guardado_hasta = len(trozos)
+            proximo_volcado = asyncio.get_event_loop().time() + 2.0
+
         try:
             while True:
                 linea = await process.stdout.readline()
@@ -226,6 +247,8 @@ class ClaudeOrchestratorService:
                                     "task_log",
                                     {"task_id": str(task_id), "chunk": texto},
                                 )
+                                if asyncio.get_event_loop().time() >= proximo_volcado:
+                                    await volcar()
 
                 elif tipo == "result":
                     if evento.get("is_error"):
@@ -276,9 +299,12 @@ class ClaudeOrchestratorService:
                         if hubo_fallo
                         else ClaudeTaskStatus.completado
                     )
-                    # Se ACUMULA, no se reemplaza: al continuar la conversacion
-                    # los turnos anteriores tienen que seguir ahi.
-                    task.execution_logs = (task.execution_logs or "") + respuesta
+                    # Solo lo que quede por volcar: los volcados periodicos ya
+                    # guardaron el resto. Acumular la respuesta entera aqui la
+                    # habria escrito dos veces.
+                    task.execution_logs = (task.execution_logs or "") + "".join(
+                        trozos[guardado_hasta:]
+                    )
                     task.finished_at = datetime.now(timezone.utc)
 
                     # Si estaba ligada a un ticket, registrar el evento de cierre
