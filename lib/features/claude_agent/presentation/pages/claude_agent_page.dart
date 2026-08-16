@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:moly_ide/core/theme/app_theme.dart';
+import 'package:moly_ide/features/auth/presentation/widgets/boton_cerrar_sesion.dart';
 import 'package:moly_ide/features/claude_agent/presentation/cubit/claude_cubit.dart';
 import 'package:moly_ide/features/claude_agent/presentation/cubit/claude_state.dart';
 import 'package:moly_ide/features/updates/presentation/widgets/update_dialog.dart';
@@ -41,9 +42,9 @@ class _ClaudeAgentPageState extends State<ClaudeAgentPage> {
     if (text.isEmpty) return;
     _promptController.clear();
     context.read<ClaudeCubit>().launchTask(
-          title: text.length > 30 ? '${text.substring(0, 30)}...' : text,
-          prompt: text,
-        );
+      title: text.length > 30 ? '${text.substring(0, 30)}...' : text,
+      prompt: text,
+    );
   }
 
   void _handleRespondHardStop() {
@@ -61,14 +62,27 @@ class _ClaudeAgentPageState extends State<ClaudeAgentPage> {
         backgroundColor: AppTheme.surface,
         title: Row(
           children: [
-            const Icon(Icons.auto_awesome_rounded, color: AppTheme.accentBlue, size: 20),
+            const Icon(
+              Icons.auto_awesome_rounded,
+              color: AppTheme.accentBlue,
+              size: 20,
+            ),
             const SizedBox(width: 8),
-            Text('Claude Agent (Jetson)', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 18)),
+            Text(
+              'Claude Agent (Jetson)',
+              style: GoogleFonts.outfit(
+                fontWeight: FontWeight.bold,
+                fontSize: 18,
+              ),
+            ),
           ],
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.system_update_rounded, color: AppTheme.accentBlue),
+            icon: const Icon(
+              Icons.system_update_rounded,
+              color: AppTheme.accentBlue,
+            ),
             tooltip: 'Actualizar App',
             onPressed: () => UpdateDialog.show(context),
           ),
@@ -77,6 +91,7 @@ class _ClaudeAgentPageState extends State<ClaudeAgentPage> {
             tooltip: 'Recargar',
             onPressed: () => context.read<ClaudeCubit>().loadDashboardData(),
           ),
+          const BotonCerrarSesion(),
         ],
       ),
       body: BlocConsumer<ClaudeCubit, ClaudeState>(
@@ -86,7 +101,10 @@ class _ClaudeAgentPageState extends State<ClaudeAgentPage> {
           }
           if (state.errorMessage != null) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(state.errorMessage!), backgroundColor: const Color(0xFFFF3366)),
+              SnackBar(
+                content: Text(state.errorMessage!),
+                backgroundColor: const Color(0xFFFF3366),
+              ),
             );
           }
         },
@@ -97,12 +115,16 @@ class _ClaudeAgentPageState extends State<ClaudeAgentPage> {
               _buildAccountsBar(state),
 
               // Interactive Hard-Stop Alert Card (Human-in-the-Loop)
-              if (state.pendingQuestion != null) _buildHardStopCard(state.pendingQuestion!),
+              if (state.pendingQuestion != null)
+                _buildHardStopCard(state.pendingQuestion!),
 
               // Live Terminal / Logs Output
               Expanded(
                 child: Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  margin: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     color: const Color(0xFF0D0D12),
@@ -114,7 +136,10 @@ class _ClaudeAgentPageState extends State<ClaudeAgentPage> {
                           child: Text(
                             'No hay tareas activas en ejecución.\nEnvía un prompt o selecciona un ticket.',
                             textAlign: TextAlign.center,
-                            style: GoogleFonts.outfit(color: AppTheme.textSecondary, fontSize: 13),
+                            style: GoogleFonts.outfit(
+                              color: AppTheme.textSecondary,
+                              fontSize: 13,
+                            ),
                           ),
                         )
                       : ListView.builder(
@@ -124,7 +149,11 @@ class _ClaudeAgentPageState extends State<ClaudeAgentPage> {
                             final log = state.liveLogs[idx];
                             return Text(
                               log,
-                              style: GoogleFonts.firaCode(fontSize: 12, color: const Color(0xFFE0E0E0), height: 1.3),
+                              style: GoogleFonts.firaCode(
+                                fontSize: 12,
+                                color: const Color(0xFFE0E0E0),
+                                height: 1.3,
+                              ),
                             );
                           },
                         ),
@@ -146,10 +175,23 @@ class _ClaudeAgentPageState extends State<ClaudeAgentPage> {
       color: AppTheme.surface,
       child: Row(
         children: [
-          Text('CUENTAS:', style: GoogleFonts.firaCode(fontSize: 11, fontWeight: FontWeight.bold, color: AppTheme.textSecondary)),
+          Text(
+            'CUENTAS:',
+            style: GoogleFonts.firaCode(
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              color: AppTheme.textSecondary,
+            ),
+          ),
           const SizedBox(width: 8),
           if (state.accounts.isEmpty)
-            Text('Sin cuentas registradas', style: GoogleFonts.outfit(fontSize: 12, color: AppTheme.textSecondary))
+            Text(
+              'Sin cuentas registradas',
+              style: GoogleFonts.outfit(
+                fontSize: 12,
+                color: AppTheme.textSecondary,
+              ),
+            )
           else
             Expanded(
               child: Wrap(
@@ -159,17 +201,25 @@ class _ClaudeAgentPageState extends State<ClaudeAgentPage> {
                   final isPrimary = acc.isPrimary;
                   return Chip(
                     visualDensity: VisualDensity.compact,
-                    backgroundColor: isActive ? AppTheme.surfaceLight : const Color(0xFFFF3366).withOpacity(0.2),
+                    backgroundColor: isActive
+                        ? AppTheme.surfaceLight
+                        : const Color(0xFFFF3366).withOpacity(0.2),
                     avatar: Icon(
-                      isActive ? Icons.check_circle_rounded : Icons.warning_rounded,
+                      isActive
+                          ? Icons.check_circle_rounded
+                          : Icons.warning_rounded,
                       size: 14,
-                      color: isActive ? const Color(0xFF00FF66) : const Color(0xFFFF3366),
+                      color: isActive
+                          ? const Color(0xFF00FF66)
+                          : const Color(0xFFFF3366),
                     ),
                     label: Text(
                       '${acc.alias}${isPrimary ? ' (P)' : ' (S)'}',
                       style: GoogleFonts.firaCode(
                         fontSize: 11,
-                        color: isActive ? Colors.white : const Color(0xFFFF3366),
+                        color: isActive
+                            ? Colors.white
+                            : const Color(0xFFFF3366),
                       ),
                     ),
                   );
@@ -202,7 +252,11 @@ class _ClaudeAgentPageState extends State<ClaudeAgentPage> {
         children: [
           Row(
             children: [
-              const Icon(Icons.pause_circle_filled_rounded, color: Color(0xFFFF9900), size: 18),
+              const Icon(
+                Icons.pause_circle_filled_rounded,
+                color: Color(0xFFFF9900),
+                size: 18,
+              ),
               const SizedBox(width: 8),
               Text(
                 'FRENO DURO • CLAUDE SOLICITA RESPUESTA',
@@ -217,7 +271,11 @@ class _ClaudeAgentPageState extends State<ClaudeAgentPage> {
           const SizedBox(height: 8),
           Text(
             question,
-            style: GoogleFonts.outfit(fontSize: 13, color: Colors.white, fontWeight: FontWeight.w500),
+            style: GoogleFonts.outfit(
+              fontSize: 13,
+              color: Colors.white,
+              fontWeight: FontWeight.w500,
+            ),
           ),
           const SizedBox(height: 10),
           Row(
@@ -228,12 +286,21 @@ class _ClaudeAgentPageState extends State<ClaudeAgentPage> {
                   style: const TextStyle(color: Colors.white, fontSize: 13),
                   decoration: InputDecoration(
                     hintText: 'Escribe tu respuesta para Claude...',
-                    hintStyle: GoogleFonts.outfit(fontSize: 12, color: AppTheme.textSecondary),
+                    hintStyle: GoogleFonts.outfit(
+                      fontSize: 12,
+                      color: AppTheme.textSecondary,
+                    ),
                     filled: true,
                     fillColor: AppTheme.surfaceLight,
                     isDense: true,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide.none,
+                    ),
                   ),
                 ),
               ),
@@ -242,9 +309,18 @@ class _ClaudeAgentPageState extends State<ClaudeAgentPage> {
                 onPressed: _handleRespondHardStop,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppTheme.primaryPurple,
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 10,
+                  ),
                 ),
-                child: Text('CONTINUAR', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 12)),
+                child: Text(
+                  'CONTINUAR',
+                  style: GoogleFonts.outfit(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                  ),
+                ),
               ),
             ],
           ),
@@ -268,11 +344,17 @@ class _ClaudeAgentPageState extends State<ClaudeAgentPage> {
               style: const TextStyle(color: Colors.white),
               decoration: InputDecoration(
                 hintText: 'Instrucción o auditoría para Claude en Jetson...',
-                hintStyle: GoogleFonts.outfit(fontSize: 13, color: AppTheme.textSecondary),
+                hintStyle: GoogleFonts.outfit(
+                  fontSize: 13,
+                  color: AppTheme.textSecondary,
+                ),
                 filled: true,
                 fillColor: AppTheme.surfaceLight,
                 isDense: true,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(24),
                   borderSide: BorderSide.none,
@@ -288,7 +370,11 @@ class _ClaudeAgentPageState extends State<ClaudeAgentPage> {
               gradient: AppTheme.purpleBlueGradient,
             ),
             child: IconButton(
-              icon: const Icon(Icons.send_rounded, color: Colors.white, size: 20),
+              icon: const Icon(
+                Icons.send_rounded,
+                color: Colors.white,
+                size: 20,
+              ),
               onPressed: _handleSendPrompt,
             ),
           ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:moly_ide/core/theme/app_theme.dart';
+import 'package:moly_ide/features/auth/presentation/widgets/boton_cerrar_sesion.dart';
 import 'package:moly_ide/features/infrastructure/presentation/cubit/infra_cubit.dart';
 import 'package:moly_ide/features/infrastructure/presentation/cubit/infra_state.dart';
 import 'package:moly_ide/features/monitor/presentation/pages/resource_monitor_page.dart';
@@ -72,6 +73,7 @@ class _InfrastructurePageState extends State<InfrastructurePage> {
             tooltip: 'Recargar',
             onPressed: () => context.read<InfraCubit>().loadServerStatus(),
           ),
+          const BotonCerrarSesion(),
         ],
       ),
       body: BlocBuilder<InfraCubit, InfraState>(

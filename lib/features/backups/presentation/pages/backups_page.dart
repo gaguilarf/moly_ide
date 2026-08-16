@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:moly_ide/core/theme/app_theme.dart';
+import 'package:moly_ide/features/auth/presentation/widgets/boton_cerrar_sesion.dart';
 import 'package:moly_ide/features/backups/presentation/cubit/backups_cubit.dart';
 import 'package:moly_ide/features/backups/presentation/cubit/backups_state.dart';
 import 'package:moly_ide/features/updates/presentation/widgets/update_dialog.dart';
@@ -38,10 +39,16 @@ class _BackupsPageState extends State<BackupsPage> {
       backgroundColor: AppTheme.background,
       appBar: AppBar(
         backgroundColor: AppTheme.surface,
-        title: Text('Backups por Proyecto', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 18)),
+        title: Text(
+          'Backups por Proyecto',
+          style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 18),
+        ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.system_update_rounded, color: AppTheme.accentBlue),
+            icon: const Icon(
+              Icons.system_update_rounded,
+              color: AppTheme.accentBlue,
+            ),
             tooltip: 'Actualizar App',
             onPressed: () => UpdateDialog.show(context),
           ),
@@ -50,18 +57,24 @@ class _BackupsPageState extends State<BackupsPage> {
             tooltip: 'Recargar',
             onPressed: () => context.read<BackupsCubit>().loadBackups(),
           ),
+          const BotonCerrarSesion(),
         ],
       ),
       body: BlocBuilder<BackupsCubit, BackupsState>(
         builder: (context, state) {
           if (state.status == BackupsStatus.loading) {
-            return const Center(child: CircularProgressIndicator(color: AppTheme.accentBlue));
+            return const Center(
+              child: CircularProgressIndicator(color: AppTheme.accentBlue),
+            );
           }
 
           final overview = state.overview;
           if (overview == null || overview.databases.isEmpty) {
             return Center(
-              child: Text('No hay información de backups disponible.', style: GoogleFonts.outfit(color: AppTheme.textSecondary)),
+              child: Text(
+                'No hay información de backups disponible.',
+                style: GoogleFonts.outfit(color: AppTheme.textSecondary),
+              ),
             );
           }
 
@@ -82,14 +95,31 @@ class _BackupsPageState extends State<BackupsPage> {
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.cloud_done_rounded, color: Color(0xFF00FF66), size: 32),
+                    const Icon(
+                      Icons.cloud_done_rounded,
+                      color: Color(0xFF00FF66),
+                      size: 32,
+                    ),
                     const SizedBox(width: 14),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(overview.serverName, style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white)),
-                          Text('Estrategia GFS (Daily / Weekly / Monthly)', style: GoogleFonts.firaCode(fontSize: 11, color: AppTheme.textSecondary)),
+                          Text(
+                            overview.serverName,
+                            style: GoogleFonts.outfit(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                              color: Colors.white,
+                            ),
+                          ),
+                          Text(
+                            'Estrategia GFS (Daily / Weekly / Monthly)',
+                            style: GoogleFonts.firaCode(
+                              fontSize: 11,
+                              color: AppTheme.textSecondary,
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -98,7 +128,14 @@ class _BackupsPageState extends State<BackupsPage> {
               ),
 
               const SizedBox(height: 20),
-              Text('BASES DE DATOS RESPALDADAS', style: GoogleFonts.firaCode(fontSize: 12, fontWeight: FontWeight.bold, color: AppTheme.accentBlue)),
+              Text(
+                'BASES DE DATOS RESPALDADAS',
+                style: GoogleFonts.firaCode(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: AppTheme.accentBlue,
+                ),
+              ),
               const SizedBox(height: 10),
 
               ...overview.databases.map((db) {
@@ -109,7 +146,9 @@ class _BackupsPageState extends State<BackupsPage> {
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
                     side: BorderSide(
-                      color: isHealthy ? const Color(0xFF00FF66).withOpacity(0.3) : const Color(0xFFFF9900).withOpacity(0.4),
+                      color: isHealthy
+                          ? const Color(0xFF00FF66).withOpacity(0.3)
+                          : const Color(0xFFFF9900).withOpacity(0.4),
                     ),
                   ),
                   child: Padding(
@@ -121,13 +160,24 @@ class _BackupsPageState extends State<BackupsPage> {
                           children: [
                             Text(
                               db.database,
-                              style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.white),
+                              style: GoogleFonts.outfit(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 15,
+                                color: Colors.white,
+                              ),
                             ),
                             const Spacer(),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 3,
+                              ),
                               decoration: BoxDecoration(
-                                color: (isHealthy ? const Color(0xFF00FF66) : const Color(0xFFFF9900)).withOpacity(0.15),
+                                color:
+                                    (isHealthy
+                                            ? const Color(0xFF00FF66)
+                                            : const Color(0xFFFF9900))
+                                        .withOpacity(0.15),
                                 borderRadius: BorderRadius.circular(4),
                               ),
                               child: Text(
@@ -135,7 +185,9 @@ class _BackupsPageState extends State<BackupsPage> {
                                 style: GoogleFonts.firaCode(
                                   fontSize: 10,
                                   fontWeight: FontWeight.bold,
-                                  color: isHealthy ? const Color(0xFF00FF66) : const Color(0xFFFF9900),
+                                  color: isHealthy
+                                      ? const Color(0xFF00FF66)
+                                      : const Color(0xFFFF9900),
                                 ),
                               ),
                             ),
@@ -145,15 +197,27 @@ class _BackupsPageState extends State<BackupsPage> {
                         if (db.latestBackup != null) ...[
                           Text(
                             'Último dump: ${db.latestBackup!.filename}',
-                            style: GoogleFonts.firaCode(fontSize: 11, color: AppTheme.textSecondary),
+                            style: GoogleFonts.firaCode(
+                              fontSize: 11,
+                              color: AppTheme.textSecondary,
+                            ),
                           ),
                           const SizedBox(height: 2),
                           Text(
                             'Tamaño: ${_formatBytes(db.latestBackup!.sizeBytes)} • ${db.totalDumps} copias guardadas',
-                            style: GoogleFonts.firaCode(fontSize: 11, color: AppTheme.textSecondary),
+                            style: GoogleFonts.firaCode(
+                              fontSize: 11,
+                              color: AppTheme.textSecondary,
+                            ),
                           ),
                         ] else
-                          Text('Sin dumps registrados.', style: GoogleFonts.firaCode(fontSize: 11, color: const Color(0xFFFF3366))),
+                          Text(
+                            'Sin dumps registrados.',
+                            style: GoogleFonts.firaCode(
+                              fontSize: 11,
+                              color: const Color(0xFFFF3366),
+                            ),
+                          ),
                       ],
                     ),
                   ),

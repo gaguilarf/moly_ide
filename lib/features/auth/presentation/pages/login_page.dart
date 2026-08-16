@@ -4,7 +4,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:moly_ide/core/theme/app_theme.dart';
 import 'package:moly_ide/features/auth/presentation/cubit/auth_cubit.dart';
 import 'package:moly_ide/features/auth/presentation/cubit/auth_state.dart';
-import 'package:moly_ide/features/main_navigation/presentation/pages/main_navigation_page.dart';
 import 'package:moly_ide/features/updates/presentation/widgets/update_dialog.dart';
 
 class LoginPage extends StatefulWidget {
@@ -26,7 +25,10 @@ class _LoginPageState extends State<LoginPage> {
   @override
   void initState() {
     super.initState();
-    _serverUrlController.text = context.read<AuthCubit>().state.currentServerUrl;
+    _serverUrlController.text = context
+        .read<AuthCubit>()
+        .state
+        .currentServerUrl;
   }
 
   void _populateFromVault(AuthState state) {
@@ -49,7 +51,10 @@ class _LoginPageState extends State<LoginPage> {
     if (username.isEmpty || password.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Ingresa tu usuario y contraseña.', style: GoogleFonts.outfit()),
+          content: Text(
+            'Ingresa tu usuario y contraseña.',
+            style: GoogleFonts.outfit(),
+          ),
           backgroundColor: const Color(0xFFFF3366),
         ),
       );
@@ -57,14 +62,16 @@ class _LoginPageState extends State<LoginPage> {
     }
 
     if (_showAdvancedServer) {
-      context.read<AuthCubit>().updateServerUrl(_serverUrlController.text.trim());
+      context.read<AuthCubit>().updateServerUrl(
+        _serverUrlController.text.trim(),
+      );
     }
 
     context.read<AuthCubit>().login(
-          username: username,
-          password: password,
-          remember: _rememberCredentials,
-        );
+      username: username,
+      password: password,
+      remember: _rememberCredentials,
+    );
   }
 
   @override
@@ -74,13 +81,13 @@ class _LoginPageState extends State<LoginPage> {
       body: BlocConsumer<AuthCubit, AuthState>(
         listener: (context, state) {
           _populateFromVault(state);
-          if (state.status == AuthStatus.authenticated) {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (context) => const MainNavigationPage()),
-            );
-          }
-          if (state.status == AuthStatus.failure && state.errorMessage != null) {
+          // Al entrar NO se empuja nada: AuthGate, que es la ruta raíz, ya
+          // cambia esta pantalla por MainNavigationPage cuando el estado pasa a
+          // autenticado. El `pushReplacement` que había aquí reemplazaba esa
+          // ruta raíz, destruyendo AuthGate — y con él, lo único que sabía
+          // volver al acceso. Por eso cerrar sesión no podía funcionar.
+          if (state.status == AuthStatus.failure &&
+              state.errorMessage != null) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(state.errorMessage!, style: GoogleFonts.outfit()),
@@ -96,7 +103,10 @@ class _LoginPageState extends State<LoginPage> {
           return SafeArea(
             child: Center(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24.0,
+                  vertical: 16.0,
+                ),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -117,7 +127,11 @@ class _LoginPageState extends State<LoginPage> {
                             ),
                           ],
                         ),
-                        child: const Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 36),
+                        child: const Icon(
+                          Icons.auto_awesome_rounded,
+                          color: Colors.white,
+                          size: 36,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 20),
@@ -138,10 +152,51 @@ class _LoginPageState extends State<LoginPage> {
                     Center(
                       child: Text(
                         'Control Móvil & Agentes Claude en Jetson',
-                        style: GoogleFonts.outfit(fontSize: 13, color: AppTheme.textSecondary),
+                        style: GoogleFonts.outfit(
+                          fontSize: 13,
+                          color: AppTheme.textSecondary,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 32),
+
+                    // Aviso de sesión caducada. Va pintado desde el estado y no
+                    // por el listener de arriba: cuando el token se rechaza,
+                    // esta pantalla todavía no está montada en el momento del
+                    // emit, así que un SnackBar no llegaría a verse nunca.
+                    if (state.status == AuthStatus.unauthenticated &&
+                        state.errorMessage != null) ...[
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(
+                            0xFFFFB74D,
+                          ).withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: const Color(0xFFFFB74D)),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.lock_clock_rounded,
+                              size: 18,
+                              color: Color(0xFFFFB74D),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                state.errorMessage!,
+                                style: GoogleFonts.outfit(
+                                  fontSize: 13,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
 
                     // Login Card
                     Container(
@@ -165,23 +220,40 @@ class _LoginPageState extends State<LoginPage> {
                             children: [
                               Text(
                                 'Iniciar Sesión',
-                                style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                                style: GoogleFonts.outfit(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
                               ),
                               const Spacer(),
                               if (state.savedUsername != null)
                                 Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 3,
+                                  ),
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFF00FF66).withOpacity(0.15),
+                                    color: const Color(
+                                      0xFF00FF66,
+                                    ).withOpacity(0.15),
                                     borderRadius: BorderRadius.circular(4),
                                   ),
                                   child: Row(
                                     children: [
-                                      const Icon(Icons.lock_rounded, size: 12, color: Color(0xFF00FF66)),
+                                      const Icon(
+                                        Icons.lock_rounded,
+                                        size: 12,
+                                        color: Color(0xFF00FF66),
+                                      ),
                                       const SizedBox(width: 4),
                                       Text(
                                         'Baúl Cargado',
-                                        style: GoogleFonts.firaCode(fontSize: 10, color: const Color(0xFF00FF66), fontWeight: FontWeight.bold),
+                                        style: GoogleFonts.firaCode(
+                                          fontSize: 10,
+                                          color: const Color(0xFF00FF66),
+                                          fontWeight: FontWeight.bold,
+                                        ),
                                       ),
                                     ],
                                   ),
@@ -200,10 +272,17 @@ class _LoginPageState extends State<LoginPage> {
                             decoration: InputDecoration(
                               labelText: 'Usuario',
                               hintText: 'gaguilar',
-                              prefixIcon: const Icon(Icons.person_rounded, color: AppTheme.accentBlue, size: 20),
+                              prefixIcon: const Icon(
+                                Icons.person_rounded,
+                                color: AppTheme.accentBlue,
+                                size: 20,
+                              ),
                               filled: true,
                               fillColor: AppTheme.surfaceLight,
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10),
+                                borderSide: BorderSide.none,
+                              ),
                             ),
                           ),
                           const SizedBox(height: 14),
@@ -215,18 +294,29 @@ class _LoginPageState extends State<LoginPage> {
                             style: const TextStyle(color: Colors.white),
                             decoration: InputDecoration(
                               labelText: 'Contraseña',
-                              prefixIcon: const Icon(Icons.lock_rounded, color: AppTheme.primaryPurple, size: 20),
+                              prefixIcon: const Icon(
+                                Icons.lock_rounded,
+                                color: AppTheme.primaryPurple,
+                                size: 20,
+                              ),
                               suffixIcon: IconButton(
                                 icon: Icon(
-                                  _obscurePassword ? Icons.visibility_rounded : Icons.visibility_off_rounded,
+                                  _obscurePassword
+                                      ? Icons.visibility_rounded
+                                      : Icons.visibility_off_rounded,
                                   color: AppTheme.textSecondary,
                                   size: 20,
                                 ),
-                                onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                                onPressed: () => setState(
+                                  () => _obscurePassword = !_obscurePassword,
+                                ),
                               ),
                               filled: true,
                               fillColor: AppTheme.surfaceLight,
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10),
+                                borderSide: BorderSide.none,
+                              ),
                             ),
                             onSubmitted: (_) => _handleLogin(),
                           ),
@@ -242,17 +332,29 @@ class _LoginPageState extends State<LoginPage> {
                                   value: _rememberCredentials,
                                   activeColor: AppTheme.primaryPurple,
                                   onChanged: (val) {
-                                    setState(() => _rememberCredentials = val ?? true);
-                                    context.read<AuthCubit>().toggleRememberCredentials(_rememberCredentials);
+                                    setState(
+                                      () => _rememberCredentials = val ?? true,
+                                    );
+                                    context
+                                        .read<AuthCubit>()
+                                        .toggleRememberCredentials(
+                                          _rememberCredentials,
+                                        );
                                   },
                                 ),
                               ),
                               const SizedBox(width: 8),
                               GestureDetector(
-                                onTap: () => setState(() => _rememberCredentials = !_rememberCredentials),
+                                onTap: () => setState(
+                                  () => _rememberCredentials =
+                                      !_rememberCredentials,
+                                ),
                                 child: Text(
                                   'Guardar credenciales en el baúl seguro',
-                                  style: GoogleFonts.outfit(fontSize: 12, color: AppTheme.textSecondary),
+                                  style: GoogleFonts.outfit(
+                                    fontSize: 12,
+                                    color: AppTheme.textSecondary,
+                                  ),
                                 ),
                               ),
                             ],
@@ -261,16 +363,23 @@ class _LoginPageState extends State<LoginPage> {
 
                           // Advanced Server Toggle
                           GestureDetector(
-                            onTap: () => setState(() => _showAdvancedServer = !_showAdvancedServer),
+                            onTap: () => setState(
+                              () => _showAdvancedServer = !_showAdvancedServer,
+                            ),
                             child: Row(
                               children: [
                                 Icon(
-                                  _showAdvancedServer ? Icons.arrow_drop_down_rounded : Icons.arrow_right_rounded,
+                                  _showAdvancedServer
+                                      ? Icons.arrow_drop_down_rounded
+                                      : Icons.arrow_right_rounded,
                                   color: AppTheme.accentBlue,
                                 ),
                                 Text(
                                   'Servidor Jetson (LAN / Tailscale)',
-                                  style: GoogleFonts.firaCode(fontSize: 11, color: AppTheme.accentBlue),
+                                  style: GoogleFonts.firaCode(
+                                    fontSize: 11,
+                                    color: AppTheme.accentBlue,
+                                  ),
                                 ),
                               ],
                             ),
@@ -280,30 +389,44 @@ class _LoginPageState extends State<LoginPage> {
                             const SizedBox(height: 10),
                             TextField(
                               controller: _serverUrlController,
-                              style: GoogleFonts.firaCode(fontSize: 12, color: Colors.white),
+                              style: GoogleFonts.firaCode(
+                                fontSize: 12,
+                                color: Colors.white,
+                              ),
                               decoration: InputDecoration(
                                 labelText: 'URL del Backend Jetson',
                                 hintText: 'http://192.168.0.109:8000',
                                 filled: true,
                                 fillColor: AppTheme.surfaceLight,
                                 isDense: true,
-                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  borderSide: BorderSide.none,
+                                ),
                               ),
                             ),
                             const SizedBox(height: 6),
                             Row(
                               children: [
                                 ActionChip(
-                                  label: Text('LAN', style: GoogleFonts.firaCode(fontSize: 10)),
+                                  label: Text(
+                                    'LAN',
+                                    style: GoogleFonts.firaCode(fontSize: 10),
+                                  ),
                                   onPressed: () {
-                                    _serverUrlController.text = 'http://192.168.0.109:8000';
+                                    _serverUrlController.text =
+                                        'http://192.168.0.109:8000';
                                   },
                                 ),
                                 const SizedBox(width: 6),
                                 ActionChip(
-                                  label: Text('Tailscale', style: GoogleFonts.firaCode(fontSize: 10)),
+                                  label: Text(
+                                    'Tailscale',
+                                    style: GoogleFonts.firaCode(fontSize: 10),
+                                  ),
                                   onPressed: () {
-                                    _serverUrlController.text = 'http://jetson-desktop.tail452840.ts.net:8000';
+                                    _serverUrlController.text =
+                                        'http://jetson-desktop.tail452840.ts.net:8000';
                                   },
                                 ),
                               ],
@@ -324,17 +447,26 @@ class _LoginPageState extends State<LoginPage> {
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Colors.transparent,
                                 shadowColor: Colors.transparent,
-                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 14,
+                                ),
                               ),
                               child: isLoading
                                   ? const SizedBox(
                                       width: 20,
                                       height: 20,
-                                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                                      child: CircularProgressIndicator(
+                                        color: Colors.white,
+                                        strokeWidth: 2,
+                                      ),
                                     )
                                   : Text(
                                       'ENTRAR AL PANEL',
-                                      style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.white),
+                                      style: GoogleFonts.outfit(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 14,
+                                        color: Colors.white,
+                                      ),
                                     ),
                             ),
                           ),
@@ -347,10 +479,17 @@ class _LoginPageState extends State<LoginPage> {
                     Center(
                       child: TextButton.icon(
                         onPressed: () => UpdateDialog.show(context),
-                        icon: const Icon(Icons.system_update_rounded, size: 16, color: AppTheme.accentBlue),
+                        icon: const Icon(
+                          Icons.system_update_rounded,
+                          size: 16,
+                          color: AppTheme.accentBlue,
+                        ),
                         label: Text(
                           'Buscar Actualización de la App',
-                          style: GoogleFonts.outfit(fontSize: 12, color: AppTheme.accentBlue),
+                          style: GoogleFonts.outfit(
+                            fontSize: 12,
+                            color: AppTheme.accentBlue,
+                          ),
                         ),
                       ),
                     ),
