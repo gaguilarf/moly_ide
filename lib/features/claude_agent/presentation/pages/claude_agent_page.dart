@@ -88,6 +88,17 @@ class _ClaudeAgentPageState extends State<ClaudeAgentPage> {
             onPressed: () => UpdateDialog.show(context),
           ),
           IconButton(
+            icon: const Icon(
+              Icons.add_comment_rounded,
+              color: AppTheme.accentBlue,
+            ),
+            tooltip: 'Chat nuevo',
+            // Cierra la conversación abierta y deja la pantalla en blanco. La
+            // tarea se crea al enviar el primer mensaje: sin esto, una vez
+            // abierto un chat no había forma de volver al estado inicial.
+            onPressed: () => context.read<ClaudeCubit>().nuevaConversacion(),
+          ),
+          IconButton(
             icon: const Icon(Icons.refresh_rounded, color: AppTheme.accentBlue),
             tooltip: 'Recargar',
             onPressed: () => context.read<ClaudeCubit>().loadDashboardData(),
@@ -430,9 +441,7 @@ class _ClaudeAgentPageState extends State<ClaudeAgentPage> {
           // Una tarea viva no se puede borrar: su subproceso sigue escribiendo.
           // Se enseña apagada en vez de esconderla, para que se vea que la
           // opción existe y por qué no está disponible.
-          color: ejecutando
-              ? AppTheme.textSecondary
-              : const Color(0xFFFF5252),
+          color: ejecutando ? AppTheme.textSecondary : const Color(0xFFFF5252),
         ),
         tooltip: ejecutando
             ? 'No se puede: se está ejecutando'

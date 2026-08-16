@@ -52,19 +52,22 @@ class ClaudeCubit extends Cubit<ClaudeState> {
     final mapa = Map<String, List<String>>.from(state.chunksPorTarea);
     mapa[taskId] = [...(mapa[taskId] ?? const []), chunk];
 
-    emit(
-      state.copyWith(
-        chunksPorTarea: mapa,
-        // Si no se está mirando nada, la tarea que habla se pone delante: al
-        // lanzar desde el detalle de un ticket, la conversación aparece sola.
-        conversacionAbierta: state.conversacionAbierta ?? taskId,
-      ),
-    );
+    // Solo se guarda: NO se cambia la conversación que se está mirando. Antes
+    // se abría la de la tarea que hablase si no había ninguna abierta, y eso
+    // secuestraba la pantalla en blanco del botón «chat nuevo» en cuanto otra
+    // tarea escupiera una línea. Quien abre conversación es launchTask, que ya
+    // lo hace al crear la tarea.
+    emit(state.copyWith(chunksPorTarea: mapa));
   }
 
   /// Cambia la conversación que se está mirando (la lista del botón flotante).
   void abrirConversacion(String taskId) =>
       emit(state.copyWith(conversacionAbierta: taskId));
+
+  /// Deja de mirar ninguna conversación: la pantalla vuelve en blanco y el
+  /// siguiente mensaje abre un chat nuevo. No se crea nada todavía, porque una
+  /// tarea sin prompt no tiene sentido en el servidor.
+  void nuevaConversacion() => emit(state.copyWith(clearConversacion: true));
 
   /// Borra una conversación. El servidor se niega con 409 si la tarea sigue
   /// viva, porque su subproceso todavía está escribiendo en la fila.
