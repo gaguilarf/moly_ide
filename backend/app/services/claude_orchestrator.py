@@ -9,9 +9,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update
 from backend.app.models.claude import (
-    ClaudeAccount,
     ClaudeTask,
-    ClaudeAccountStatus,
     ClaudeTaskStatus,
 )
 from backend.app.models.ticket import Ticket, TicketEvent, EventKind, TicketStatus
@@ -53,44 +51,6 @@ class ClaudeOrchestratorService:
         for ws in dead:
             self.ws_subscribers.discard(ws)
 
-    async def get_next_available_account(self, session: AsyncSession) -> Optional[ClaudeAccount]:
-        """Obtiene la cuenta principal disponible o rota automáticamente a la cuenta secundaria si la cuota expiró."""
-        # 1. Buscar primaria activa
-        stmt_primary = select(ClaudeAccount).where(
-            ClaudeAccount.is_primary == True,
-            ClaudeAccount.status == ClaudeAccountStatus.activa,
-        )
-        res = await session.execute(stmt_primary)
-        primary = res.scalar_one_or_none()
-        if primary:
-            return primary
-
-        # 2. Si no hay primaria o está agotada, buscar secundaria activa
-        stmt_sec = select(ClaudeAccount).where(
-            ClaudeAccount.is_primary == False,
-            ClaudeAccount.status == ClaudeAccountStatus.activa,
-        )
-        res_sec = await session.execute(stmt_sec)
-        secondary = res_sec.scalar_one_or_none()
-        if secondary:
-            logger.info(f"Usando cuenta secundaria {secondary.alias} por cuota agotada en la primaria.")
-            return secondary
-
-        # 3. Fallback: cualquier cuenta activa
-        stmt_any = select(ClaudeAccount).where(ClaudeAccount.status == ClaudeAccountStatus.activa)
-        res_any = await session.execute(stmt_any)
-        return res_any.scalars().first()
-
-    async def mark_account_quota_exhausted(self, account_id: int, session: AsyncSession):
-        """Marca una cuenta como cuota agotada para disparar la rotación."""
-        await session.execute(
-            update(ClaudeAccount)
-            .where(ClaudeAccount.id == account_id)
-            .values(status=ClaudeAccountStatus.cuota_agotada, last_used_at=datetime.now(timezone.utc))
-        )
-        await session.commit()
-        await self.broadcast_event("account_quota_exhausted", {"account_id": account_id})
-
     async def start_task(self, task_id: UUID, db_session_factory) -> None:
         """Inicia la ejecución asíncrona de Claude para una tarea o resolución de ticket."""
         async with db_session_factory() as session:
@@ -98,20 +58,11 @@ class ClaudeOrchestratorService:
             if not task:
                 return
 
-            account = await self.get_next_available_account(session)
-            if not account:
-                task.status = ClaudeTaskStatus.fallido
-                task.execution_logs = "Error: No hay cuentas de Claude activas o disponibles."
-                await session.commit()
-                await self.broadcast_event("task_failed", {"task_id": str(task_id), "reason": "no_accounts"})
-                return
-
-            task.account_id = account.id
             task.status = ClaudeTaskStatus.ejecutando
             await session.commit()
 
             # Lanzar subproceso en segundo plano
-            asyncio.create_task(self._run_claude_process(task_id, task.prompt, task.target_repo, account, db_session_factory))
+            asyncio.create_task(self._run_claude_process(task_id, task.prompt, task.target_repo, db_session_factory))
 
     async def _marcar_fallida(self, task_id: UUID, db_session_factory, motivo: str):
         """Deja la tarea en fallido con el motivo, y lo manda por el WebSocket.
@@ -133,7 +84,7 @@ class ClaudeOrchestratorService:
             "task_finished", {"task_id": str(task_id), "status": "fallido"}
         )
 
-    async def _run_claude_process(self, task_id: UUID, prompt: str, target_repo: Optional[str], account: ClaudeAccount, db_session_factory):
+    async def _run_claude_process(self, task_id: UUID, prompt: str, target_repo: Optional[str], db_session_factory):
         cmd = [settings.CLAUDE_CLI_PATH, "--print", prompt]
         cwd = target_repo or settings.REPOS_BASE_DIR
 
@@ -179,7 +130,7 @@ class ClaudeOrchestratorService:
         active = ActiveClaudeProcess(task_id, process)
         self.active_processes[task_id] = active
 
-        await self.broadcast_event("task_started", {"task_id": str(task_id), "account": account.alias})
+        await self.broadcast_event("task_started", {"task_id": str(task_id)})
 
         rate_limit_pattern = re.compile(r"(rate limit reached|usage limit exceeded|credit balance is too low)", re.IGNORECASE)
         hard_stop_question_pattern = re.compile(r"(\[PROMPT_USER\]|¿Quieres que proceda\?|Do you want to proceed\?|Please confirm|Por favor confirma)", re.IGNORECASE)
@@ -198,13 +149,18 @@ class ClaudeOrchestratorService:
                 # Emitir log a la app móvil por WebSocket
                 await self.broadcast_event("task_log", {"task_id": str(task_id), "chunk": text})
 
-                # 1. Detección de Rate Limit / Cuota Agotada -> Rotación automática
+                # 1. Cuota agotada. Con una sola cuenta no hay a donde rotar, asi
+                # que se corta y se dice por que: antes se marcaba la cuenta y se
+                # salia del bucle en silencio, dejando la tarea a medias sin
+                # explicacion y sin reintentar nada.
                 if rate_limit_pattern.search(text):
-                    logger.warning(f"Límite de cuota detectado en la tarea {task_id}.")
-                    async with db_session_factory() as session:
-                        await self.mark_account_quota_exhausted(account.id, session)
-                    # Reintentar la tarea con la siguiente cuenta disponible
-                    break
+                    logger.warning(f"Limite de cuota detectado en la tarea {task_id}.")
+                    await self._marcar_fallida(
+                        task_id,
+                        db_session_factory,
+                        "Cuota de Claude agotada. Espere a que se renueve y vuelva a lanzarla.",
+                    )
+                    return
 
                 # 2. Detección de Freno Duro (Human-in-the-Loop)
                 if hard_stop_question_pattern.search(text) or "¿" in text:
@@ -250,7 +206,7 @@ class ClaudeOrchestratorService:
                         if ticket:
                             event = TicketEvent(
                                 ticket_id=ticket.id,
-                                actor=f"claude-agent ({account.alias})",
+                                actor="claude-agent",
                                 kind=EventKind.resolucion_agente,
                                 to_status=TicketStatus.revision.value,
                                 note="Resolución autónoma completada. Pasado a revisión.",

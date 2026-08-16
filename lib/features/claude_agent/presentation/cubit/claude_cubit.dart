@@ -68,11 +68,6 @@ class ClaudeCubit extends Cubit<ClaudeState> {
   Future<void> loadDashboardData() async {
     emit(state.copyWith(status: ClaudeStateStatus.loading));
     try {
-      final accountsResp = await apiClient.dio.get('/claude/accounts');
-      final accounts = (accountsResp.data as List)
-          .map((a) => ClaudeAccountModel.fromJson(a))
-          .toList();
-
       final tasksResp = await apiClient.dio.get('/claude/tasks');
       final tasks = (tasksResp.data as List)
           .map((t) => ClaudeTaskModel.fromJson(t))
@@ -90,7 +85,6 @@ class ClaudeCubit extends Cubit<ClaudeState> {
       emit(
         state.copyWith(
           status: ClaudeStateStatus.success,
-          accounts: accounts,
           tasks: tasks,
           // Sin los `clear*`, cuando ya no hay tarea viva se quedaba la
           // anterior en el estado —y su pregunta— para siempre.
@@ -155,15 +149,6 @@ class ClaudeCubit extends Cubit<ClaudeState> {
       emit(
         state.copyWith(errorMessage: 'Error enviando respuesta a Claude: $e'),
       );
-    }
-  }
-
-  Future<void> resetAccountQuota(int accountId) async {
-    try {
-      await apiClient.dio.post('/claude/accounts/$accountId/reset-quota');
-      await loadDashboardData();
-    } catch (e) {
-      emit(state.copyWith(errorMessage: 'Error reseteando cuota: $e'));
     }
   }
 

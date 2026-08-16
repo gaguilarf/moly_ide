@@ -1,30 +1,3 @@
-class ClaudeAccountModel {
-  final int id;
-  final String alias;
-  final String? email;
-  final String status;
-  final bool isPrimary;
-  final String? lastUsedAt;
-
-  ClaudeAccountModel({
-    required this.id,
-    required this.alias,
-    this.email,
-    required this.status,
-    required this.isPrimary,
-    this.lastUsedAt,
-  });
-
-  factory ClaudeAccountModel.fromJson(Map<String, dynamic> json) => ClaudeAccountModel(
-        id: json['id'] ?? 0,
-        alias: json['alias'] ?? '',
-        email: json['email'],
-        status: json['status'] ?? 'activa',
-        isPrimary: json['is_primary'] ?? false,
-        lastUsedAt: json['last_used_at'],
-      );
-}
-
 class ClaudeTaskModel {
   final String id;
   final int? ticketId;
