@@ -125,29 +125,18 @@ class ClaudeCubit extends Cubit<ClaudeState> {
     return e.toString();
   }
 
-  Timer? _refresco;
-
-  /// Refresca mientras haya algo corriendo.
+  /// Se asegura de que la conexión en vivo está abierta cuando hay algo que
+  /// escuchar.
   ///
-  /// El WebSocket es el camino rápido, pero si se cae —y tras un reinicio del
-  /// servidor se cae— la conversación se quedaba en blanco aunque Claude
-  /// estuviera escribiendo. El servidor guarda ya la respuesta según llega, así
-  /// que recargar cada pocos segundos la enseña igual. De paso se reintenta la
-  /// conexión, que es lo que la devuelve al camino rápido.
+  /// Aquí hubo un refresco periódico cada tres segundos como red de seguridad,
+  /// pero repintaba la conversación sin parar y movía la pantalla mientras se
+  /// leía. Se quita: la conexión en vivo es el único camino, y lo que se hace
+  /// es reintentarla al recargar. Si aun así no llega, el botón de recargar
+  /// trae lo que el servidor lleva guardado.
   void _vigilar(List<ClaudeTaskModel> tasks) {
-    final corriendo = tasks.any((t) => t.status == 'ejecutando');
-
-    if (!corriendo) {
-      _refresco?.cancel();
-      _refresco = null;
-      return;
+    if (tasks.any((t) => t.status == 'ejecutando')) {
+      unawaited(wsService.connect());
     }
-
-    unawaited(wsService.connect());
-    _refresco ??= Timer.periodic(
-      const Duration(seconds: 3),
-      (_) => loadDashboardData(),
-    );
   }
 
   Future<void> loadDashboardData() async {
@@ -248,7 +237,6 @@ class ClaudeCubit extends Cubit<ClaudeState> {
 
   @override
   Future<void> close() {
-    _refresco?.cancel();
     _wsSubscription?.cancel();
     return super.close();
   }
