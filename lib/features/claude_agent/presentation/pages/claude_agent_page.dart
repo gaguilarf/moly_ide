@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:moly_ide/core/theme/app_theme.dart';
 import 'package:moly_ide/features/auth/presentation/widgets/boton_cerrar_sesion.dart';
+import 'package:moly_ide/features/claude_agent/data/models/claude_models.dart';
 import 'package:moly_ide/features/claude_agent/presentation/cubit/claude_cubit.dart';
 import 'package:moly_ide/features/claude_agent/presentation/cubit/claude_state.dart';
 import 'package:moly_ide/features/updates/presentation/widgets/update_dialog.dart';
@@ -96,9 +97,7 @@ class _ClaudeAgentPageState extends State<ClaudeAgentPage> {
       ),
       body: BlocConsumer<ClaudeCubit, ClaudeState>(
         listener: (context, state) {
-          if (state.liveLogs.isNotEmpty) {
-            _scrollToBottom();
-          }
+          _scrollToBottom();
           if (state.errorMessage != null) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -109,62 +108,250 @@ class _ClaudeAgentPageState extends State<ClaudeAgentPage> {
           }
         },
         builder: (context, state) {
+          final conversacion = state.conversacion;
+          final enCurso = state.tareasEnCurso;
+
           return Column(
             children: [
-              // Dual-Account Status Bar
               _buildAccountsBar(state),
 
-              // Interactive Hard-Stop Alert Card (Human-in-the-Loop)
-              if (state.pendingQuestion != null)
-                _buildHardStopCard(state.pendingQuestion!),
-
-              // Live Terminal / Logs Output
               Expanded(
-                child: Container(
-                  margin: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF0D0D12),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: AppTheme.border),
-                  ),
-                  child: state.liveLogs.isEmpty
-                      ? Center(
-                          child: Text(
-                            'No hay tareas activas en ejecución.\nEnvía un prompt o selecciona un ticket.',
-                            textAlign: TextAlign.center,
-                            style: GoogleFonts.outfit(
-                              color: AppTheme.textSecondary,
-                              fontSize: 13,
-                            ),
-                          ),
-                        )
-                      : ListView.builder(
-                          controller: _logScrollController,
-                          itemCount: state.liveLogs.length,
-                          itemBuilder: (context, idx) {
-                            final log = state.liveLogs[idx];
-                            return Text(
-                              log,
-                              style: GoogleFonts.firaCode(
-                                fontSize: 12,
-                                color: const Color(0xFFE0E0E0),
-                                height: 1.3,
-                              ),
-                            );
-                          },
-                        ),
+                child: Stack(
+                  children: [
+                    Positioned.fill(
+                      child: conversacion == null
+                          ? _buildVacio()
+                          : _buildConversacion(state, conversacion),
+                    ),
+
+                    // El flotante de tareas en curso. Va aquí y no como
+                    // floatingActionButton del Scaffold para que quede sobre la
+                    // conversación y no tape la caja de escribir.
+                    if (enCurso.isNotEmpty)
+                      Positioned(
+                        right: 16,
+                        bottom: 16,
+                        child: _buildFlotanteTareas(context, enCurso),
+                      ),
+                  ],
                 ),
               ),
 
-              // Bottom Prompt Input Bar
               _buildBottomInputBar(),
             ],
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildVacio() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Text(
+          'Ninguna conversación abierta.\n'
+          'Escribe abajo para pedirle algo a Claude en el Jetson.',
+          textAlign: TextAlign.center,
+          style: GoogleFonts.outfit(
+            color: AppTheme.textSecondary,
+            fontSize: 13,
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// La conversación: lo que pediste, lo que Claude va respondiendo, y —si se
+  /// ha parado a preguntar— su pregunta con la caja para contestarle.
+  Widget _buildConversacion(ClaudeState state, ClaudeTaskModel tarea) {
+    final salida = state.salidaDe(tarea);
+    final pregunta = state.preguntaDe(tarea);
+    final esperando = tarea.status == 'ejecutando' && salida.isEmpty;
+
+    return ListView(
+      controller: _logScrollController,
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 80),
+      children: [
+        _burbuja(texto: tarea.prompt, mio: true),
+
+        if (esperando) _pensando(),
+        if (salida.isNotEmpty)
+          _burbuja(
+            texto: salida,
+            mio: false,
+            monoespaciada: true,
+            fallo: tarea.status == 'fallido',
+          ),
+
+        if (pregunta != null) _buildHardStopCard(pregunta),
+
+        if (tarea.status == 'fallido' && salida.isEmpty)
+          _burbuja(
+            texto: 'La tarea falló sin dejar salida.',
+            mio: false,
+            fallo: true,
+          ),
+      ],
+    );
+  }
+
+  Widget _burbuja({
+    required String texto,
+    required bool mio,
+    bool monoespaciada = false,
+    bool fallo = false,
+  }) {
+    return Align(
+      alignment: mio ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        constraints: const BoxConstraints(maxWidth: 520),
+        decoration: BoxDecoration(
+          color: mio
+              ? AppTheme.primaryPurple.withValues(alpha: 0.25)
+              : (fallo
+                    ? const Color(0xFFFF5252).withValues(alpha: 0.12)
+                    : AppTheme.surface),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: mio
+                ? AppTheme.primaryPurple
+                : (fallo ? const Color(0xFFFF5252) : AppTheme.border),
+          ),
+        ),
+        child: SelectableText(
+          texto,
+          style: monoespaciada
+              ? GoogleFonts.firaCode(
+                  fontSize: 12,
+                  color: const Color(0xFFE0E0E0),
+                  height: 1.35,
+                )
+              : GoogleFonts.outfit(
+                  fontSize: 14,
+                  color: Colors.white,
+                  height: 1.35,
+                ),
+        ),
+      ),
+    );
+  }
+
+  Widget _pensando() {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: AppTheme.surface,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppTheme.border),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(
+              height: 14,
+              width: 14,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: AppTheme.accentBlue,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Text(
+              'Claude está trabajando…',
+              style: GoogleFonts.outfit(
+                fontSize: 13,
+                color: AppTheme.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Botón flotante con lo que Claude tiene entre manos. Al pulsarlo, la lista;
+  /// al tocar una, se abre su conversación.
+  Widget _buildFlotanteTareas(
+    BuildContext context,
+    List<ClaudeTaskModel> enCurso,
+  ) {
+    return FloatingActionButton.extended(
+      heroTag: 'tareas-en-curso',
+      backgroundColor: AppTheme.primaryPurple,
+      onPressed: () => _mostrarTareas(context, enCurso),
+      icon: const Icon(Icons.terminal_rounded, color: Colors.white),
+      label: Text(
+        '${enCurso.length} en curso',
+        style: GoogleFonts.outfit(
+          fontWeight: FontWeight.bold,
+          color: Colors.white,
+        ),
+      ),
+    );
+  }
+
+  void _mostrarTareas(BuildContext context, List<ClaudeTaskModel> enCurso) {
+    final cubit = context.read<ClaudeCubit>();
+
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppTheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (hojaCtx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(
+                'Tareas en curso en el Jetson',
+                style: GoogleFonts.outfit(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+            for (final t in enCurso)
+              ListTile(
+                leading: Icon(
+                  t.status == 'bloqueado_esperando_humano'
+                      ? Icons.pause_circle_filled_rounded
+                      : Icons.play_circle_fill_rounded,
+                  color: t.status == 'bloqueado_esperando_humano'
+                      ? const Color(0xFFFF9900)
+                      : AppTheme.accentBlue,
+                ),
+                title: Text(
+                  t.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.outfit(color: Colors.white),
+                ),
+                subtitle: Text(
+                  t.status == 'bloqueado_esperando_humano'
+                      ? 'Esperando tu respuesta'
+                      : 'Ejecutando',
+                  style: GoogleFonts.firaCode(
+                    fontSize: 11,
+                    color: AppTheme.textSecondary,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.pop(hojaCtx);
+                  cubit.abrirConversacion(t.id);
+                },
+              ),
+          ],
+        ),
       ),
     );
   }
