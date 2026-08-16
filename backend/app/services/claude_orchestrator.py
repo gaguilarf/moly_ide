@@ -186,7 +186,8 @@ class ClaudeOrchestratorService:
             "--output-format=stream-json",
             "--include-partial-messages",
             "--verbose",
-            "--allowed-tools=Read,Glob,Grep,Bash(bin/moly *),Bash(git log *),Bash(git status)",
+            "--allowed-tools=Read,Glob,Grep,Edit,Write,Bash(bin/moly *),"
+            "Bash(git status),Bash(git log *),Bash(git diff *)",
             "--resume" if reanudar else "--session-id",
             str(task_id),
             prompt,
