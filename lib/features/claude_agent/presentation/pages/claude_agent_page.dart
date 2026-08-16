@@ -18,7 +18,6 @@ class ClaudeAgentPage extends StatefulWidget {
 
 class _ClaudeAgentPageState extends State<ClaudeAgentPage> {
   final TextEditingController _promptController = TextEditingController();
-  final TextEditingController _hardStopController = TextEditingController();
   final ScrollController _logScrollController = ScrollController();
 
   @override
@@ -39,21 +38,28 @@ class _ClaudeAgentPageState extends State<ClaudeAgentPage> {
     });
   }
 
-  void _handleSendPrompt() {
-    final text = _promptController.text.trim();
-    if (text.isEmpty) return;
+  /// Enviar CONTINUA la conversacion abierta. Solo abre una nueva si no hay
+  /// ninguna —o si se ha pulsado «chat nuevo» arriba—. Antes creaba siempre una
+  /// tarea, asi que contestar a lo que Claude preguntaba empezaba un chat
+  /// desde cero que no sabia nada de lo anterior.
+  Future<void> _handleSendPrompt() async {
+    final texto = _promptController.text.trim();
+    if (texto.isEmpty) return;
     _promptController.clear();
-    context.read<ClaudeCubit>().launchTask(
-      title: text.length > 30 ? '${text.substring(0, 30)}...' : text,
-      prompt: text,
-    );
-  }
 
-  void _handleRespondHardStop() {
-    final text = _hardStopController.text.trim();
-    if (text.isEmpty) return;
-    _hardStopController.clear();
-    context.read<ClaudeCubit>().respondToHardStop(text);
+    final cubit = context.read<ClaudeCubit>();
+    final abierta = cubit.state.conversacionAbierta;
+
+    if (abierta == null) {
+      await cubit.launchTask(
+        title: texto.length > 30 ? '${texto.substring(0, 30)}...' : texto,
+        prompt: texto,
+      );
+      return;
+    }
+
+    final error = await cubit.continuarConversacion(abierta, texto);
+    if (error != null && mounted) _avisar(context, error);
   }
 
   @override
@@ -177,7 +183,6 @@ class _ClaudeAgentPageState extends State<ClaudeAgentPage> {
   /// ha parado a preguntar— su pregunta con la caja para contestarle.
   Widget _buildConversacion(ClaudeState state, ClaudeTaskModel tarea) {
     final salida = state.salidaDe(tarea);
-    final pregunta = state.preguntaDe(tarea);
     final esperando = tarea.status == 'ejecutando' && salida.isEmpty;
 
     return ListView(
@@ -194,8 +199,6 @@ class _ClaudeAgentPageState extends State<ClaudeAgentPage> {
             markdown: true,
             fallo: tarea.status == 'fallido',
           ),
-
-        if (pregunta != null) _buildHardStopCard(pregunta),
 
         if (tarea.status == 'fallido' && salida.isEmpty)
           _burbuja(
@@ -573,104 +576,6 @@ class _ClaudeAgentPageState extends State<ClaudeAgentPage> {
       SnackBar(
         content: Text(mensaje, style: GoogleFonts.outfit()),
         backgroundColor: const Color(0xFFFF3366),
-      ),
-    );
-  }
-
-  Widget _buildHardStopCard(String question) {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(12, 8, 12, 4),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1E142B),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppTheme.primaryPurple, width: 1.5),
-        boxShadow: [
-          BoxShadow(
-            color: AppTheme.primaryPurple.withOpacity(0.3),
-            blurRadius: 10,
-            spreadRadius: 1,
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(
-                Icons.pause_circle_filled_rounded,
-                color: Color(0xFFFF9900),
-                size: 18,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                'FRENO DURO • CLAUDE SOLICITA RESPUESTA',
-                style: GoogleFonts.firaCode(
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
-                  color: const Color(0xFFFF9900),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            question,
-            style: GoogleFonts.outfit(
-              fontSize: 13,
-              color: Colors.white,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _hardStopController,
-                  style: const TextStyle(color: Colors.white, fontSize: 13),
-                  decoration: InputDecoration(
-                    hintText: 'Escribe tu respuesta para Claude...',
-                    hintStyle: GoogleFonts.outfit(
-                      fontSize: 12,
-                      color: AppTheme.textSecondary,
-                    ),
-                    filled: true,
-                    fillColor: AppTheme.surfaceLight,
-                    isDense: true,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 10,
-                    ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide.none,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              ElevatedButton(
-                onPressed: _handleRespondHardStop,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.primaryPurple,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 10,
-                  ),
-                ),
-                child: Text(
-                  'CONTINUAR',
-                  style: GoogleFonts.outfit(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 12,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
       ),
     );
   }
