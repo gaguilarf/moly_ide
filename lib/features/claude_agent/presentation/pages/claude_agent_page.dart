@@ -182,25 +182,27 @@ class _ClaudeAgentPageState extends State<ClaudeAgentPage> {
   /// La conversación: lo que pediste, lo que Claude va respondiendo, y —si se
   /// ha parado a preguntar— su pregunta con la caja para contestarle.
   Widget _buildConversacion(ClaudeState state, ClaudeTaskModel tarea) {
-    final salida = state.salidaDe(tarea);
-    final esperando = tarea.status == 'ejecutando' && salida.isEmpty;
+    final turnos = state.turnosDe(tarea);
+    final soloTuyo = turnos.every((t) => t.mio);
+    final esperando = tarea.status == 'ejecutando' && soloTuyo;
 
     return ListView(
       controller: _logScrollController,
       padding: const EdgeInsets.fromLTRB(12, 12, 12, 80),
       children: [
-        _burbuja(texto: tarea.prompt, mio: true),
-
-        if (esperando) _pensando(),
-        if (salida.isNotEmpty)
+        for (final t in turnos)
           _burbuja(
-            texto: salida,
-            mio: false,
-            markdown: true,
-            fallo: tarea.status == 'fallido',
+            texto: t.texto,
+            mio: t.mio,
+            // Lo que responde Claude viene en markdown; lo tuyo es texto tal
+            // cual y se deja como está.
+            markdown: !t.mio,
+            fallo: !t.mio && tarea.status == 'fallido',
           ),
 
-        if (tarea.status == 'fallido' && salida.isEmpty)
+        if (esperando) _pensando(),
+
+        if (tarea.status == 'fallido' && soloTuyo)
           _burbuja(
             texto: 'La tarea falló sin dejar salida.',
             mio: false,

@@ -81,9 +81,13 @@ class ClaudeOrchestratorService:
             target_repo = task.target_repo
 
         # El turno del usuario se mete en la transcripcion antes de responder,
-        # para que la conversacion se lea en orden al reabrirla. Va en markdown
-        # porque la app pinta la salida como tal.
-        turno = f"\n\n**Tú:** {mensaje}\n\n"
+        # para que la conversacion se lea en orden al reabrirla.
+        #
+        # Va entre marcas y no como texto («**Tú:** ...») porque la app trocea
+        # la transcripcion por aqui para pintar cada turno en su lado. Escrito
+        # como markdown, el mensaje del usuario acababa DENTRO de la burbuja de
+        # Claude, a la izquierda y con el «Tú:» a la vista.
+        turno = f"\n\n[[TU]]{mensaje}[[/TU]]\n\n"
         await self._anadir_a_log(task_id, turno, db_session_factory)
 
         asyncio.create_task(

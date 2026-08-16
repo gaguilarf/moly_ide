@@ -188,4 +188,60 @@ void main() {
       expect(estado.salidaDe(t), 'hola mundo');
     });
   });
+
+  group('La conversacion se trocea en turnos', () {
+    test('el primer mensaje es tuyo y la respuesta es de Claude', () {
+      final t = _tarea(id: 'a', status: 'completado', logs: 'te respondo esto');
+      final turnos = ClaudeState(tasks: [t]).turnosDe(t);
+
+      expect(turnos.length, 2);
+      expect(turnos[0].mio, isTrue);
+      expect(turnos[0].texto, 'haz algo');
+      expect(turnos[1].mio, isFalse);
+      expect(turnos[1].texto, 'te respondo esto');
+    });
+
+    test('tus turnos siguientes salen de tu lado, no dentro de la respuesta', () {
+      // Este era el fallo: la transcripcion entera se pintaba como UNA burbuja
+      // de Claude, asi que lo que escribia el usuario aparecia a la izquierda.
+      final t = _tarea(
+        id: 'a',
+        status: 'completado',
+        logs: 'primera respuesta[[TU]]y ahora esto[[/TU]]segunda respuesta',
+      );
+      final turnos = ClaudeState(tasks: [t]).turnosDe(t);
+
+      expect(turnos.map((x) => x.mio).toList(), [true, false, true, false]);
+      expect(turnos[2].texto, 'y ahora esto');
+      expect(turnos[3].texto, 'segunda respuesta');
+    });
+
+    test('un mensaje tuyo con saltos de linea no se parte', () {
+      final t = _tarea(
+        id: 'a',
+        status: 'completado',
+        logs: 'ok[[TU]]linea uno\nlinea dos[[/TU]]vale',
+      );
+      final turnos = ClaudeState(tasks: [t]).turnosDe(t);
+      expect(turnos[2].texto, 'linea uno\nlinea dos');
+    });
+
+    test('se sigue entendiendo el formato viejo de las conversaciones previas', () {
+      final t = _tarea(
+        id: 'a',
+        status: 'completado',
+        logs: 'respondi\n\n**Tú:** pregunta vieja\n\ny segui',
+      );
+      final turnos = ClaudeState(tasks: [t]).turnosDe(t);
+      expect(turnos.map((x) => x.mio).toList(), [true, false, true, false]);
+      expect(turnos[2].texto, 'pregunta vieja');
+    });
+
+    test('sin respuesta todavia, solo esta tu mensaje', () {
+      final t = _tarea(id: 'a', status: 'ejecutando');
+      final turnos = ClaudeState(tasks: [t]).turnosDe(t);
+      expect(turnos.length, 1);
+      expect(turnos.single.mio, isTrue);
+    });
+  });
 }
