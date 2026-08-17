@@ -157,6 +157,28 @@ class ClaudeOrchestratorService:
                 task.execution_logs = (task.execution_logs or "") + texto
                 await session.commit()
 
+    async def _marcar_fallida(self, task_id: UUID, db_session_factory, motivo: str):
+        """Deja la tarea en fallido con el motivo, y lo manda por el WebSocket.
+
+        Sin el aviso, una tarea que muere antes de arrancar no genera ni un solo
+        `task_log`: la app se queda con su «Claude esta trabajando...» para
+        siempre.
+        """
+        async with db_session_factory() as session:
+            task = await session.get(ClaudeTask, task_id)
+            if task:
+                task.status = ClaudeTaskStatus.fallido
+                task.execution_logs = (task.execution_logs or "") + motivo
+                task.finished_at = datetime.now(timezone.utc)
+                await session.commit()
+
+        await self.broadcast_event(
+            "task_log", {"task_id": str(task_id), "chunk": f"\n\n[ERROR] {motivo}\n"}
+        )
+        await self.broadcast_event(
+            "task_finished", {"task_id": str(task_id), "status": "fallido"}
+        )
+
     async def _run_claude_process(
         self,
         task_id: UUID,
@@ -378,6 +400,20 @@ class ClaudeOrchestratorService:
             await self.broadcast_event(
                 "task_finished",
                 {"task_id": str(task_id), "exit_code": process.returncode},
+            )
+
+        except Exception as e:
+            # Cualquier fallo de aqui dentro dejaba la tarea en `ejecutando`
+            # PARA SIEMPRE: la excepcion moria en el asyncio.create_task que la
+            # lanzo, nadie la miraba, y la app la enseñaba corriendo sin avanzar
+            # hasta que alguien reiniciase el servicio. Paso de verdad con dos
+            # conversaciones y un AttributeError.
+            logger.exception("La tarea %s se rompio a media ejecucion.", task_id)
+            await self._marcar_fallida(
+                task_id,
+                db_session_factory,
+                f"\n\n[La tarea se interrumpio por un fallo interno: "
+                f"{type(e).__name__}: {e}]\n",
             )
 
         finally:
