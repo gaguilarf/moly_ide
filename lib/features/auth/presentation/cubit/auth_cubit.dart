@@ -186,10 +186,36 @@ class AuthCubit extends Cubit<AuthState> {
       emit(
         state.copyWith(
           status: AuthStatus.failure,
-          errorMessage: 'Credenciales inválidas o error de conexión.',
+          errorMessage: _porQueFalloElAcceso(e),
         ),
       );
     }
+  }
+
+  /// Distingue «no llego al servidor» de «la contraseña está mal».
+  ///
+  /// Antes las dos cosas decían «Credenciales inválidas o error de conexión»,
+  /// así que quien entraba desde fuera de la LAN —con la dirección del servidor
+  /// por defecto, que no le enruta— se pasaba el rato probando contraseñas
+  /// buenas sin ninguna pista de que el problema era la dirección.
+  String _porQueFalloElAcceso(Object e) {
+    if (e is! DioException) return 'No se pudo entrar: $e';
+
+    final codigo = e.response?.statusCode;
+    if (codigo == 401 || codigo == 403) {
+      return 'Usuario o contraseña incorrectos.';
+    }
+    if (codigo != null) {
+      final detalle = e.response?.data;
+      if (detalle is Map && detalle['detail'] is String) {
+        return 'El servidor rechazó el acceso: ${detalle['detail']}';
+      }
+      return 'El servidor respondió HTTP $codigo.';
+    }
+
+    return 'No se pudo conectar con ${apiClient.currentBaseUrl}. '
+        'Comprueba la dirección del servidor: desde fuera de la red local hay '
+        'que usar la de Tailscale.';
   }
 
   Future<void> logout({bool keepVaultCredentials = true}) async {
