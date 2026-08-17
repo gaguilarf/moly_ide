@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
+
 import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
@@ -22,12 +24,18 @@ class OrchestratorApiClient {
   static const String storageKeyBaseUrl = 'jetson_orchestrator_base_url';
   static const String storageKeyAuthToken = 'jetson_orchestrator_token';
 
-  String currentBaseUrl = defaultBaseUrl;
+  /// En web la app se sirve desde el propio backend, así que el servidor es el
+  /// origen de la página: no hay que escribir ninguna dirección ni pelearse con
+  /// CORS. En móvil no hay página, así que se usa la del Jetson en la LAN.
+  static String get baseUrlPorDefecto =>
+      kIsWeb ? Uri.base.origin : defaultBaseUrl;
+
+  String currentBaseUrl = baseUrlPorDefecto;
 
   OrchestratorApiClient({required this.secureStorage}) {
     dio = Dio(
       BaseOptions(
-        baseUrl: '$defaultBaseUrl/api/v1',
+        baseUrl: '$baseUrlPorDefecto/api/v1',
         connectTimeout: const Duration(seconds: 10),
         receiveTimeout: const Duration(seconds: 15),
         headers: {

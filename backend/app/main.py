@@ -1,7 +1,9 @@
 import logging
+import os
 
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 from sqlalchemy import func, update
 from backend.app.config import settings
@@ -83,6 +85,21 @@ app.include_router(backups.router, prefix=settings.API_V1_STR, dependencies=prot
 app.include_router(docs.router, prefix=settings.API_V1_STR, dependencies=protegido)
 app.include_router(explorer.router, prefix=settings.API_V1_STR, dependencies=protegido)
 app.include_router(system.router, prefix=settings.API_V1_STR, dependencies=protegido)
+
+
+# La app web se sirve desde el propio backend, en /app. Compartir origen con la
+# API evita el CORS entero: el navegador ve la pagina y las llamadas en el mismo
+# host y puerto, asi que CORS_ORIGINS puede seguir vacio.
+#
+# Se monta solo si el directorio existe, para que un backend sin web desplegada
+# arranque igual en vez de reventar al inicio.
+DIRECTORIO_WEB = os.getenv("WEB_DIR", "/home/jetson/moly_web")
+if os.path.isdir(DIRECTORIO_WEB):
+    app.mount(
+        "/app",
+        StaticFiles(directory=DIRECTORIO_WEB, html=True),
+        name="web",
+    )
 
 
 @app.get("/")
