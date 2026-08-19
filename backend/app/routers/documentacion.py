@@ -24,7 +24,7 @@ router = APIRouter(prefix="/documentacion", tags=["Documentacion viva"])
 
 # Ordenadas de menos a mas restrictiva. El orden ES la escala.
 AUDIENCIAS = ("publico_general", "administrativo", "ti")
-TIPOS = ("servicio", "regla", "mejora", "runbook")
+TIPOS = ("servicio", "regla", "mejora", "runbook", "auditoria")
 ESTADOS_TEMA = ("borrador", "publicado", "archivado")
 
 # Al Jetson solo entra el equipo tecnico, asi que todo actor autenticado lee
@@ -316,6 +316,75 @@ async def crear_tema(payload: dict, db: AsyncSession = Depends(get_db), actor: A
     ).first()
     await db.commit()
     return {"id": fila[0], "slug": slug}
+
+
+@router.patch("/temas/{slug}")
+async def actualizar_tema(
+    slug: str, payload: dict, db: AsyncSession = Depends(get_db), actor: Actor = Depends(require_actor)
+):
+    """Edita metadata del tema (titulo/tipo/estado/resumen/responsable/proyecto/
+    servicio_ref) y deja rastro en doc_revisiones vía tema_id — antes de la
+    migración 0001 este endpoint no existía y esos cambios no dejaban historial."""
+    actual = (
+        await db.execute(
+            text(
+                """SELECT id, titulo, tipo::text, estado::text, resumen, responsable,
+                          proyecto, servicio_ref
+                     FROM doc_temas WHERE slug = :slug"""
+            ),
+            {"slug": slug},
+        )
+    ).first()
+    if not actual:
+        raise HTTPException(status_code=404, detail=f"El tema {slug} no existe")
+
+    nuevo_tipo = payload.get("tipo", actual[2])
+    if nuevo_tipo not in TIPOS:
+        raise HTTPException(status_code=422, detail=f"tipo debe ser: {' | '.join(TIPOS)}")
+    nuevo_estado = payload.get("estado", actual[3])
+    if nuevo_estado not in ESTADOS_TEMA:
+        raise HTTPException(status_code=422, detail=f"estado debe ser: {' | '.join(ESTADOS_TEMA)}")
+    nuevo_responsable = payload.get("responsable", actual[5])
+    if nuevo_estado == "publicado" and not (nuevo_responsable or "").strip():
+        raise HTTPException(status_code=422, detail="Un tema publicado necesita responsable.")
+
+    nuevo_proyecto = payload.get("proyecto", actual[6])
+    if nuevo_proyecto and nuevo_proyecto != actual[6]:
+        validos = [
+            r[0] for r in (await db.execute(text("SELECT slug FROM registro_proyectos ORDER BY slug"))).all()
+        ]
+        if nuevo_proyecto not in validos:
+            raise HTTPException(
+                status_code=422,
+                detail=f"proyecto '{nuevo_proyecto}' no existe; use uno de: {', '.join(validos)}",
+            )
+
+    await db.execute(
+        text(
+            """UPDATE doc_temas
+                  SET titulo = :titulo, tipo = :tipo, estado = :estado, resumen = :resumen,
+                      responsable = :responsable, proyecto = :proyecto,
+                      servicio_ref = :servicio_ref, updated_at = CURRENT_TIMESTAMP
+                WHERE id = :id"""
+        ),
+        {
+            "titulo": payload.get("titulo", actual[1]), "tipo": nuevo_tipo, "estado": nuevo_estado,
+            "resumen": payload.get("resumen", actual[4]), "responsable": nuevo_responsable,
+            "proyecto": nuevo_proyecto, "servicio_ref": payload.get("servicio_ref", actual[7]),
+            "id": actual[0],
+        },
+    )
+    accion = "reclasificada" if nuevo_tipo != actual[2] or nuevo_estado != actual[3] else "editada"
+    await db.execute(
+        text(
+            """INSERT INTO doc_revisiones (tema_id, actor, accion, motivo, ticket_ref)
+               VALUES (:tema, :actor, :accion, :motivo, :ticket)"""
+        ),
+        {"tema": actual[0], "actor": actor.nombre, "accion": accion,
+         "motivo": payload.get("motivo"), "ticket": payload.get("ticket_ref")},
+    )
+    await db.commit()
+    return {"id": actual[0], "slug": slug, "accion": accion}
 
 
 @router.post("/temas/{slug}/secciones", status_code=201)
