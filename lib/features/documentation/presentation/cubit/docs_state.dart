@@ -11,6 +11,12 @@ class DocsState {
   final List<SeccionDocModel> secciones;
   final bool cargandoTema;
 
+  /// Historial de la sección actualmente abierta en el modal. `null` =
+  /// modal cerrado.
+  final int? revisionesSeccionId;
+  final List<RevisionDocModel> revisiones;
+  final bool cargandoRevisiones;
+
   final String? errorMessage;
 
   const DocsState({
@@ -19,6 +25,9 @@ class DocsState {
     this.temaAbierto,
     this.secciones = const [],
     this.cargandoTema = false,
+    this.revisionesSeccionId,
+    this.revisiones = const [],
+    this.cargandoRevisiones = false,
     this.errorMessage,
   });
 
@@ -29,6 +38,10 @@ class DocsState {
     bool cerrarTema = false,
     List<SeccionDocModel>? secciones,
     bool? cargandoTema,
+    int? revisionesSeccionId,
+    bool cerrarRevisiones = false,
+    List<RevisionDocModel>? revisiones,
+    bool? cargandoRevisiones,
     String? errorMessage,
   }) {
     return DocsState(
@@ -39,6 +52,13 @@ class DocsState {
       temaAbierto: cerrarTema ? null : (temaAbierto ?? this.temaAbierto),
       secciones: cerrarTema ? const [] : (secciones ?? this.secciones),
       cargandoTema: cargandoTema ?? this.cargandoTema,
+      revisionesSeccionId: cerrarRevisiones
+          ? null
+          : (revisionesSeccionId ?? this.revisionesSeccionId),
+      revisiones: cerrarRevisiones ? const [] : (revisiones ?? this.revisiones),
+      cargandoRevisiones: cerrarRevisiones
+          ? false
+          : (cargandoRevisiones ?? this.cargandoRevisiones),
       errorMessage: errorMessage,
     );
   }

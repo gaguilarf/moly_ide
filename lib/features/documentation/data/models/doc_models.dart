@@ -70,3 +70,40 @@ class SeccionDocModel {
         frescura: json['frescura'],
       );
 }
+
+/// Una entrada de `doc_revisiones`: qué cambió en una sección, quién y por
+/// qué. El backend ya oculta `cuerpoAnterior`/`motivo` si la audiencia de
+/// entonces era más restrictiva que la de quien consulta (`detalleOculto`).
+class RevisionDocModel {
+  final int id;
+  final String at;
+  final String actor;
+  final String accion;
+  final String? cuerpoAnterior;
+  final String? motivo;
+  final String? ticketRef;
+  final bool detalleOculto;
+
+  const RevisionDocModel({
+    required this.id,
+    required this.at,
+    required this.actor,
+    required this.accion,
+    this.cuerpoAnterior,
+    this.motivo,
+    this.ticketRef,
+    required this.detalleOculto,
+  });
+
+  factory RevisionDocModel.fromJson(Map<String, dynamic> json) =>
+      RevisionDocModel(
+        id: json['id'] ?? 0,
+        at: json['at'] ?? '',
+        actor: json['actor'] ?? '',
+        accion: json['accion'] ?? '',
+        cuerpoAnterior: json['cuerpo_anterior'],
+        motivo: json['motivo'],
+        ticketRef: json['ticket_ref'],
+        detalleOculto: json['detalle_oculto'] ?? false,
+      );
+}

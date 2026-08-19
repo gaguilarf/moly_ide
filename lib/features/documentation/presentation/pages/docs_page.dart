@@ -219,11 +219,11 @@ class _DocsPageState extends State<DocsPage> {
       padding: const EdgeInsets.all(12),
       itemCount: state.secciones.length,
       separatorBuilder: (_, _) => const SizedBox(height: 10),
-      itemBuilder: (context, i) => _fichaSeccion(state.secciones[i]),
+      itemBuilder: (context, i) => _fichaSeccion(context, state.secciones[i]),
     );
   }
 
-  Widget _fichaSeccion(SeccionDocModel s) {
+  Widget _fichaSeccion(BuildContext context, SeccionDocModel s) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(14),
@@ -247,7 +247,20 @@ class _DocsPageState extends State<DocsPage> {
                   ),
                 ),
               ),
-              if (s.frescura != null) _etiquetaFrescura(s.frescura!),
+              if (s.frescura != null) ...[
+                _etiquetaFrescura(s.frescura!),
+                const SizedBox(width: 6),
+              ],
+              IconButton(
+                icon: const Icon(
+                  Icons.history_rounded,
+                  size: 18,
+                  color: AppTheme.textSecondary,
+                ),
+                tooltip: 'Historial de esta sección',
+                visualDensity: VisualDensity.compact,
+                onPressed: () => _abrirHistorial(context, s),
+              ),
             ],
           ),
           const SizedBox(height: 8),
@@ -261,6 +274,23 @@ class _DocsPageState extends State<DocsPage> {
         ],
       ),
     );
+  }
+
+  void _abrirHistorial(BuildContext context, SeccionDocModel s) {
+    final cubit = context.read<DocsCubit>();
+    cubit.verHistorial(s.id);
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppTheme.surface,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (sheetContext) => BlocProvider.value(
+        value: cubit,
+        child: _HistorialSheet(titulo: s.titulo),
+      ),
+    ).whenComplete(() => cubit.cerrarHistorial());
   }
 
   /// La frescura dice si el contenido se puede creer todavía, así que va en
@@ -287,5 +317,187 @@ class _DocsPageState extends State<DocsPage> {
         style: GoogleFonts.firaCode(fontSize: 10, color: color),
       ),
     );
+  }
+}
+
+/// Historial de una sección: cada fila es una revisión (`doc_revisiones`),
+/// más reciente primero (el backend ya la manda en ese orden).
+class _HistorialSheet extends StatelessWidget {
+  final String titulo;
+
+  const _HistorialSheet({required this.titulo});
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      initialChildSize: 0.6,
+      minChildSize: 0.3,
+      maxChildSize: 0.9,
+      expand: false,
+      builder: (context, scrollController) {
+        return BlocBuilder<DocsCubit, DocsState>(
+          builder: (context, state) {
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 36,
+                      height: 4,
+                      margin: const EdgeInsets.only(bottom: 12),
+                      decoration: BoxDecoration(
+                        color: AppTheme.border,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.history_rounded,
+                        size: 18,
+                        color: AppTheme.accentBlue,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Historial — $titulo',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.outfit(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Expanded(child: _cuerpo(state, scrollController)),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _cuerpo(DocsState state, ScrollController scrollController) {
+    if (state.cargandoRevisiones) {
+      return const Center(
+        child: CircularProgressIndicator(color: AppTheme.accentBlue),
+      );
+    }
+    if (state.revisiones.isEmpty) {
+      return Center(
+        child: Text(
+          'Sin revisiones registradas todavía.',
+          style: GoogleFonts.outfit(color: AppTheme.textSecondary),
+        ),
+      );
+    }
+    return ListView.separated(
+      controller: scrollController,
+      itemCount: state.revisiones.length,
+      separatorBuilder: (_, _) =>
+          const Divider(color: AppTheme.border, height: 20),
+      itemBuilder: (context, i) => _filaRevision(state.revisiones[i]),
+    );
+  }
+
+  Widget _filaRevision(RevisionDocModel r) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.only(top: 5),
+          child: Icon(Icons.circle, size: 8, color: AppTheme.accentBlue),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Text(
+                    r.accion,
+                    style: GoogleFonts.firaCode(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.accentBlue,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      '${r.actor} • ${_fecha(r.at)}',
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.firaCode(
+                        fontSize: 11,
+                        color: AppTheme.textSecondary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              if (r.motivo != null && r.motivo!.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text(
+                  r.motivo!,
+                  style: GoogleFonts.outfit(fontSize: 13, color: Colors.white),
+                ),
+              ],
+              if (r.detalleOculto) ...[
+                const SizedBox(height: 4),
+                Text(
+                  'Detalle oculto: audiencia de entonces más restrictiva que la tuya.',
+                  style: GoogleFonts.outfit(
+                    fontSize: 11,
+                    fontStyle: FontStyle.italic,
+                    color: AppTheme.textSecondary,
+                  ),
+                ),
+              ],
+              if (r.ticketRef != null && r.ticketRef!.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppTheme.primaryPurple.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: AppTheme.primaryPurple),
+                  ),
+                  child: Text(
+                    r.ticketRef!,
+                    style: GoogleFonts.firaCode(
+                      fontSize: 10,
+                      color: AppTheme.primaryPurple,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _fecha(String iso) {
+    try {
+      final d = DateTime.parse(iso).toLocal();
+      String p(int n) => n.toString().padLeft(2, '0');
+      return '${p(d.day)}/${p(d.month)}/${d.year} ${p(d.hour)}:${p(d.minute)}';
+    } catch (_) {
+      return iso;
+    }
   }
 }
