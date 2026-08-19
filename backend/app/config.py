@@ -6,7 +6,7 @@ from typing import List
 
 
 class Settings(BaseSettings):
-    APP_NAME: str = "Moly Orchestrator API"
+    APP_NAME: str = "Ragnar Group API"
     APP_VERSION: str = "1.0.0"
     API_V1_STR: str = "/api/v1"
 
