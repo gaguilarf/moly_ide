@@ -74,9 +74,17 @@ dart analyze lib
 # Ejecutar app móvil
 flutter run
 
-# Comprobar estado del backend en Jetson
-ssh -i ~/.ssh/id_ed25519_jetson jetson@192.168.0.109 "ps aux | grep uvicorn; ss -tlnp | grep 8000"
+# Comprobar estado del backend en Jetson (verificado 2026-08-19: es un unit de
+# systemd, no un proceso nohup suelto -- lo de abajo mataría el servicio y
+# systemd lo revivería solo 5s después con el código viejo, sin avisar)
+ssh jetson "sudo systemctl status moly-orchestrator.service"
 
-# Reiniciar backend en Jetson si se actualiza código
-ssh -i ~/.ssh/id_ed25519_jetson jetson@192.168.0.109 "pkill -f uvicorn || true; cd /home/jetson/moly_backend && nohup /home/jetson/moly_backend/venv/bin/python3 -m uvicorn backend.app.main:app --host 0.0.0.0 --port 8000 > /home/jetson/moly_backend/backend.log 2>&1 </dev/null &"
+# Reiniciar backend en Jetson si se actualiza código (requiere el drop-in de
+# sudoers /etc/sudoers.d/jetson-moly-restart, o sudo interactivo)
+ssh jetson "sudo systemctl restart moly-orchestrator.service"
 ```
+
+**Antes de tocar el backend**: el checkout de `/home/jetson/moly_backend/backend` llevaba semanas sin `git`
+(se editaba directo por SSH, con copias `.bak-<fecha>` como único respaldo) y había divergido de este repo
+-- reconciliado en RAG-4. Verificar que ambos sigan sincronizados antes de asumir que un cambio local ya
+está desplegado, y viceversa.
