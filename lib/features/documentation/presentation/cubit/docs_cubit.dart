@@ -63,6 +63,36 @@ class DocsCubit extends Cubit<DocsState> {
 
   void volverALista() => emit(state.copyWith(cerrarTema: true));
 
+  /// Historial de una sección (`doc_revisiones`): qué cambió, quién y por
+  /// qué, no solo la última versión.
+  Future<void> verHistorial(int seccionId) async {
+    emit(
+      state.copyWith(
+        revisionesSeccionId: seccionId,
+        cargandoRevisiones: true,
+        revisiones: [],
+      ),
+    );
+    try {
+      final resp = await apiClient.dio.get(
+        '/documentacion/secciones/$seccionId/revisiones',
+      );
+      final revisiones = ((resp.data['revisiones'] as List?) ?? [])
+          .map((r) => RevisionDocModel.fromJson(r))
+          .toList();
+      emit(state.copyWith(revisiones: revisiones, cargandoRevisiones: false));
+    } catch (e) {
+      emit(
+        state.copyWith(
+          cargandoRevisiones: false,
+          errorMessage: 'No se pudo cargar el historial: ${_detalle(e)}',
+        ),
+      );
+    }
+  }
+
+  void cerrarHistorial() => emit(state.copyWith(cerrarRevisiones: true));
+
   String _detalle(Object e) {
     if (e is DioException) {
       final data = e.response?.data;
