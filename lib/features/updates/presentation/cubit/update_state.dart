@@ -22,7 +22,7 @@ class UpdateState {
     this.totalBytes = 0,
     this.downloadedFilePath,
     this.errorMessage,
-    this.updateUrl = 'http://192.168.0.101:8088/app-release.apk',
+    this.updateUrl = 'https://panel.ragnargroup.app/updates/app-release.apk',
     this.currentVersion = '1.0.0+6',
     this.latestVersion,
     this.isCheckingVersion = false,

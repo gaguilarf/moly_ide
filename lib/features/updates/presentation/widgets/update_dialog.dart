@@ -67,7 +67,11 @@ class _UpdateDialogState extends State<UpdateDialog> {
                       color: AppTheme.accentBlue.withOpacity(0.15),
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: const Icon(Icons.system_update_rounded, color: AppTheme.accentBlue, size: 24),
+                    child: const Icon(
+                      Icons.system_update_rounded,
+                      color: AppTheme.accentBlue,
+                      size: 24,
+                    ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -76,13 +80,20 @@ class _UpdateDialogState extends State<UpdateDialog> {
                       children: [
                         Text(
                           'Actualización de la App',
-                          style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                          style: GoogleFonts.outfit(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
                         ),
                         Row(
                           children: [
                             Text(
                               'Instalada: v${state.currentVersion}',
-                              style: GoogleFonts.firaCode(fontSize: 11, color: AppTheme.textSecondary),
+                              style: GoogleFonts.firaCode(
+                                fontSize: 11,
+                                color: AppTheme.textSecondary,
+                              ),
                             ),
                             if (state.latestVersion != null) ...[
                               const SizedBox(width: 8),
@@ -90,7 +101,9 @@ class _UpdateDialogState extends State<UpdateDialog> {
                                 '• Servidor: v${state.latestVersion}',
                                 style: GoogleFonts.firaCode(
                                   fontSize: 11,
-                                  color: isUpToDate ? const Color(0xFF00FF66) : const Color(0xFFFF9900),
+                                  color: isUpToDate
+                                      ? const Color(0xFF00FF66)
+                                      : const Color(0xFFFF9900),
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
@@ -101,8 +114,13 @@ class _UpdateDialogState extends State<UpdateDialog> {
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.close_rounded, color: AppTheme.textSecondary),
-                    onPressed: isDownloading ? null : () => Navigator.pop(context),
+                    icon: const Icon(
+                      Icons.close_rounded,
+                      color: AppTheme.textSecondary,
+                    ),
+                    onPressed: isDownloading
+                        ? null
+                        : () => Navigator.pop(context),
                   ),
                 ],
               ),
@@ -110,20 +128,23 @@ class _UpdateDialogState extends State<UpdateDialog> {
 
               // Version Comparison Status Card
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
                 decoration: BoxDecoration(
                   color: isUpToDate
                       ? const Color(0xFF00FF66).withOpacity(0.1)
                       : (state.latestVersion != null
-                          ? const Color(0xFFFF9900).withOpacity(0.1)
-                          : AppTheme.surfaceLight),
+                            ? const Color(0xFFFF9900).withOpacity(0.1)
+                            : AppTheme.surfaceLight),
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(
                     color: isUpToDate
                         ? const Color(0xFF00FF66).withOpacity(0.4)
                         : (state.latestVersion != null
-                            ? const Color(0xFFFF9900).withOpacity(0.4)
-                            : AppTheme.border),
+                              ? const Color(0xFFFF9900).withOpacity(0.4)
+                              : AppTheme.border),
                   ),
                 ),
                 child: Row(
@@ -132,38 +153,64 @@ class _UpdateDialogState extends State<UpdateDialog> {
                       const SizedBox(
                         width: 16,
                         height: 16,
-                        child: CircularProgressIndicator(color: AppTheme.accentBlue, strokeWidth: 2),
+                        child: CircularProgressIndicator(
+                          color: AppTheme.accentBlue,
+                          strokeWidth: 2,
+                        ),
                       )
                     else if (isUpToDate)
-                      const Icon(Icons.check_circle_rounded, color: Color(0xFF00FF66), size: 18)
+                      const Icon(
+                        Icons.check_circle_rounded,
+                        color: Color(0xFF00FF66),
+                        size: 18,
+                      )
                     else if (state.latestVersion != null)
-                      const Icon(Icons.new_releases_rounded, color: Color(0xFFFF9900), size: 18)
+                      const Icon(
+                        Icons.new_releases_rounded,
+                        color: Color(0xFFFF9900),
+                        size: 18,
+                      )
                     else
-                      const Icon(Icons.info_outline_rounded, color: AppTheme.accentBlue, size: 18),
+                      const Icon(
+                        Icons.info_outline_rounded,
+                        color: AppTheme.accentBlue,
+                        size: 18,
+                      ),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
                         isChecking
                             ? 'Comprobando última versión en el servidor...'
                             : (isUpToDate
-                                ? 'Estás en la última versión disponible (v${state.currentVersion}).'
-                                : (state.latestVersion != null
-                                    ? '¡Nueva versión disponible (v${state.latestVersion})!'
-                                    : state.statusMessage)),
+                                  ? 'Estás en la última versión disponible (v${state.currentVersion}).'
+                                  : (state.latestVersion != null
+                                        ? '¡Nueva versión disponible (v${state.latestVersion})!'
+                                        : state.statusMessage)),
                         style: GoogleFonts.outfit(
                           fontSize: 12,
-                          fontWeight: isUpToDate || state.latestVersion != null ? FontWeight.bold : FontWeight.normal,
+                          fontWeight: isUpToDate || state.latestVersion != null
+                              ? FontWeight.bold
+                              : FontWeight.normal,
                           color: isUpToDate
                               ? const Color(0xFF00FF66)
-                              : (state.latestVersion != null ? const Color(0xFFFF9900) : Colors.white),
+                              : (state.latestVersion != null
+                                    ? const Color(0xFFFF9900)
+                                    : Colors.white),
                         ),
                       ),
                     ),
                     if (!isDownloading)
                       IconButton(
-                        icon: const Icon(Icons.sync_rounded, size: 16, color: AppTheme.accentBlue),
+                        icon: const Icon(
+                          Icons.sync_rounded,
+                          size: 16,
+                          color: AppTheme.accentBlue,
+                        ),
                         tooltip: 'Volver a comprobar',
-                        onPressed: () => context.read<UpdateCubit>().checkForUpdates(urlOverride: _urlController.text.trim()),
+                        onPressed: () =>
+                            context.read<UpdateCubit>().checkForUpdates(
+                              urlOverride: _urlController.text.trim(),
+                            ),
                       ),
                   ],
                 ),
@@ -173,7 +220,10 @@ class _UpdateDialogState extends State<UpdateDialog> {
               // Server URL textfield
               Text(
                 'URL del Servidor de Descargas:',
-                style: GoogleFonts.outfit(fontSize: 12, color: AppTheme.textSecondary),
+                style: GoogleFonts.outfit(
+                  fontSize: 12,
+                  color: AppTheme.textSecondary,
+                ),
               ),
               const SizedBox(height: 6),
               TextField(
@@ -181,39 +231,18 @@ class _UpdateDialogState extends State<UpdateDialog> {
                 enabled: !isDownloading,
                 style: GoogleFonts.firaCode(fontSize: 12, color: Colors.white),
                 decoration: InputDecoration(
-                  hintText: 'http://192.168.0.101:8088/app-release.apk',
+                  hintText:
+                      'https://panel.ragnargroup.app/updates/app-release.apk',
                   filled: true,
                   fillColor: AppTheme.surfaceLight,
                   isDense: true,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: BorderSide.none,
+                  ),
                 ),
-                onSubmitted: (val) => context.read<UpdateCubit>().setUpdateUrl(val),
-              ),
-              const SizedBox(height: 8),
-
-              // Preset chips
-              Row(
-                children: [
-                  ActionChip(
-                    label: Text('LAN (Wi-Fi)', style: GoogleFonts.firaCode(fontSize: 10)),
-                    onPressed: isDownloading
-                        ? null
-                        : () {
-                            _urlController.text = 'http://192.168.0.101:8088/app-release.apk';
-                            context.read<UpdateCubit>().setUpdateUrl(_urlController.text);
-                          },
-                  ),
-                  const SizedBox(width: 8),
-                  ActionChip(
-                    label: Text('Tailscale', style: GoogleFonts.firaCode(fontSize: 10)),
-                    onPressed: isDownloading
-                        ? null
-                        : () {
-                            _urlController.text = 'http://100.120.20.100:8088/app-release.apk';
-                            context.read<UpdateCubit>().setUpdateUrl(_urlController.text);
-                          },
-                  ),
-                ],
+                onSubmitted: (val) =>
+                    context.read<UpdateCubit>().setUpdateUrl(val),
               ),
               const SizedBox(height: 12),
 
@@ -224,14 +253,19 @@ class _UpdateDialogState extends State<UpdateDialog> {
                   child: LinearProgressIndicator(
                     value: state.progress > 0 ? state.progress : null,
                     backgroundColor: AppTheme.surfaceLight,
-                    valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.accentBlue),
+                    valueColor: const AlwaysStoppedAnimation<Color>(
+                      AppTheme.accentBlue,
+                    ),
                     minHeight: 8,
                   ),
                 ),
                 const SizedBox(height: 8),
                 Text(
                   state.statusMessage,
-                  style: GoogleFonts.firaCode(fontSize: 11, color: AppTheme.accentBlue),
+                  style: GoogleFonts.firaCode(
+                    fontSize: 11,
+                    color: AppTheme.accentBlue,
+                  ),
                 ),
                 const SizedBox(height: 12),
               ],
@@ -245,17 +279,25 @@ class _UpdateDialogState extends State<UpdateDialog> {
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: ElevatedButton.icon(
-                    icon: const Icon(Icons.install_mobile_rounded, color: Colors.black),
+                    icon: const Icon(
+                      Icons.install_mobile_rounded,
+                      color: Colors.black,
+                    ),
                     label: Text(
                       'INSTALAR APK DESCARGADO',
-                      style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: Colors.black, fontSize: 13),
+                      style: GoogleFonts.outfit(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black,
+                        fontSize: 13,
+                      ),
                     ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.transparent,
                       shadowColor: Colors.transparent,
                       padding: const EdgeInsets.symmetric(vertical: 14),
                     ),
-                    onPressed: () => context.read<UpdateCubit>().openExistingApk(),
+                    onPressed: () =>
+                        context.read<UpdateCubit>().openExistingApk(),
                   ),
                 ),
               ] else ...[
@@ -263,33 +305,48 @@ class _UpdateDialogState extends State<UpdateDialog> {
                 Container(
                   width: double.infinity,
                   decoration: BoxDecoration(
-                    gradient: (isUpToDate || isDownloading) ? null : AppTheme.purpleBlueGradient,
-                    color: (isUpToDate || isDownloading) ? AppTheme.surfaceLight : null,
+                    gradient: (isUpToDate || isDownloading)
+                        ? null
+                        : AppTheme.purpleBlueGradient,
+                    color: (isUpToDate || isDownloading)
+                        ? AppTheme.surfaceLight
+                        : null,
                     borderRadius: BorderRadius.circular(10),
-                    border: isUpToDate ? Border.all(color: AppTheme.border) : null,
+                    border: isUpToDate
+                        ? Border.all(color: AppTheme.border)
+                        : null,
                   ),
                   child: ElevatedButton.icon(
                     icon: isDownloading
                         ? const SizedBox(
                             width: 18,
                             height: 18,
-                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2,
+                            ),
                           )
                         : Icon(
-                            isUpToDate ? Icons.check_circle_outline_rounded : Icons.download_rounded,
-                            color: isUpToDate ? AppTheme.textSecondary : Colors.white,
+                            isUpToDate
+                                ? Icons.check_circle_outline_rounded
+                                : Icons.download_rounded,
+                            color: isUpToDate
+                                ? AppTheme.textSecondary
+                                : Colors.white,
                           ),
                     label: Text(
                       isDownloading
                           ? 'DESCARGANDO...'
                           : (isUpToDate
-                              ? 'ESTÁS EN LA ÚLTIMA VERSIÓN'
-                              : (state.latestVersion != null
-                                  ? 'DESCARGAR E INSTALAR V${state.latestVersion}'
-                                  : 'DESCARGAR E INSTALAR')),
+                                ? 'ESTÁS EN LA ÚLTIMA VERSIÓN'
+                                : (state.latestVersion != null
+                                      ? 'DESCARGAR E INSTALAR V${state.latestVersion}'
+                                      : 'DESCARGAR E INSTALAR')),
                       style: GoogleFonts.outfit(
                         fontWeight: FontWeight.bold,
-                        color: isUpToDate ? AppTheme.textSecondary : Colors.white,
+                        color: isUpToDate
+                            ? AppTheme.textSecondary
+                            : Colors.white,
                         fontSize: 13,
                       ),
                     ),
@@ -304,8 +361,8 @@ class _UpdateDialogState extends State<UpdateDialog> {
                         ? null
                         : () {
                             context.read<UpdateCubit>().downloadAndInstall(
-                                  urlOverride: _urlController.text.trim(),
-                                );
+                              urlOverride: _urlController.text.trim(),
+                            );
                           },
                   ),
                 ),
@@ -317,12 +374,15 @@ class _UpdateDialogState extends State<UpdateDialog> {
                     child: TextButton(
                       onPressed: () {
                         context.read<UpdateCubit>().downloadAndInstall(
-                              urlOverride: _urlController.text.trim(),
-                            );
+                          urlOverride: _urlController.text.trim(),
+                        );
                       },
                       child: Text(
                         'Reinstalar versión de todos modos',
-                        style: GoogleFonts.outfit(fontSize: 11, color: AppTheme.textSecondary),
+                        style: GoogleFonts.outfit(
+                          fontSize: 11,
+                          color: AppTheme.textSecondary,
+                        ),
                       ),
                     ),
                   ),

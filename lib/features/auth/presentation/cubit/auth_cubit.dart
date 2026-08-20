@@ -75,7 +75,6 @@ class AuthCubit extends Cubit<AuthState> {
             savedUsername: savedUsername,
             savedPassword: savedPassword,
             rememberCredentials: remember,
-            currentServerUrl: apiClient.currentBaseUrl,
           ),
         );
       } else {
@@ -89,24 +88,14 @@ class AuthCubit extends Cubit<AuthState> {
             clearSavedCredentials:
                 savedUsername == null && savedPassword == null,
             rememberCredentials: remember,
-            currentServerUrl: apiClient.currentBaseUrl,
           ),
         );
       }
     } catch (_) {
       emit(
-        state.copyWith(
-          status: AuthStatus.unauthenticated,
-          clearSession: true,
-          currentServerUrl: apiClient.currentBaseUrl,
-        ),
+        state.copyWith(status: AuthStatus.unauthenticated, clearSession: true),
       );
     }
-  }
-
-  void updateServerUrl(String url) {
-    apiClient.updateBaseUrl(url);
-    emit(state.copyWith(currentServerUrl: url));
   }
 
   void toggleRememberCredentials(bool value) {
@@ -214,8 +203,7 @@ class AuthCubit extends Cubit<AuthState> {
     }
 
     return 'No se pudo conectar con ${apiClient.currentBaseUrl}. '
-        'Comprueba la dirección del servidor: desde fuera de la red local hay '
-        'que usar la de Tailscale.';
+        'Comprueba que Tailscale esté conectado.';
   }
 
   Future<void> logout({bool keepVaultCredentials = true}) async {

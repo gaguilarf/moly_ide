@@ -75,7 +75,7 @@
    - Botón directo para solicitar modificaciones al agente Claude.
 
 8. **🔄 Módulo de Actualizaciones con Autolimpieza (`lib/features/updates/`)**:
-   - Descarga in-app del APK más reciente desde el servidor local (`192.168.0.101:8088/app-release.apk` o Tailscale `100.120.20.100:8088/app-release.apk`).
+   - Descarga in-app del APK más reciente desde `https://panel.ragnargroup.app/updates/app-release.apk`, servido por el propio backend en el Jetson (no depende de que este PC tenga un puerto abierto).
    - **Autolimpieza de Versiones Anteriores**: Antes de descargar un nuevo APK, verifica si existe un archivo `.apk` descargado previamente y lo elimina automáticamente para evitar la acumulación de archivos pesados en el almacenamiento del dispositivo.
    - Barra de progreso en vivo y ejecución directa del instalador de paquetes de Android (`OpenFilex`).
 

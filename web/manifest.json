@@ -1,11 +1,11 @@
 {
-    "name": "moly_ide",
-    "short_name": "moly_ide",
+    "name": "Ragnar Group",
+    "short_name": "RAG",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "Control móvil y agentes Claude en el Jetson.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

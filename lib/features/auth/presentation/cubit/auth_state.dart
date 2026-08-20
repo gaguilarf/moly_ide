@@ -13,7 +13,6 @@ class AuthState {
   final AuthStatus status;
   final AuthUserModel? user;
   final String? token;
-  final String currentServerUrl;
   final String? savedUsername;
   final String? savedPassword;
   final bool rememberCredentials;
@@ -23,7 +22,6 @@ class AuthState {
     this.status = AuthStatus.initial,
     this.user,
     this.token,
-    this.currentServerUrl = 'http://192.168.0.109:8000',
     this.savedUsername,
     this.savedPassword,
     this.rememberCredentials = true,
@@ -34,7 +32,6 @@ class AuthState {
     AuthStatus? status,
     AuthUserModel? user,
     String? token,
-    String? currentServerUrl,
     String? savedUsername,
     String? savedPassword,
     bool? rememberCredentials,
@@ -49,7 +46,6 @@ class AuthState {
       // ahí la contraseña aunque se hubiera pedido vaciar el baúl.
       user: clearSession ? null : (user ?? this.user),
       token: clearSession ? null : (token ?? this.token),
-      currentServerUrl: currentServerUrl ?? this.currentServerUrl,
       savedUsername: clearSavedCredentials
           ? null
           : (savedUsername ?? this.savedUsername),

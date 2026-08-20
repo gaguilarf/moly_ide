@@ -17,20 +17,22 @@ class OrchestratorApiClient {
   /// pasaba era que había que volver a entrar.
   Stream<void> get sesionCaducada => _sesionCaducada.stream;
 
-  // Defaults: LAN IP o Tailscale
-  static const String defaultBaseUrl = 'http://192.168.0.109:8000';
-  static const String defaultTailscaleUrl =
-      'http://jetson-desktop.tail452840.ts.net:8000';
-  static const String storageKeyBaseUrl = 'jetson_orchestrator_base_url';
+  // Única vía de acceso: por Tailscale a través de Caddy (TLS de Let's
+  // Encrypt, mismo certificado que usa vault), que reenvía al backend real
+  // del Jetson. No hay variante LAN: el equipo no siempre está en la misma
+  // red, y mantener dos direcciones era lo que llevaba a escribir la
+  // equivocada a mano en el formulario.
+  static const String defaultBaseUrl =
+      'https://jetson-desktop.tail452840.ts.net:8443';
   static const String storageKeyAuthToken = 'jetson_orchestrator_token';
 
   /// En web la app se sirve desde el propio backend, así que el servidor es el
   /// origen de la página: no hay que escribir ninguna dirección ni pelearse con
-  /// CORS. En móvil no hay página, así que se usa la del Jetson en la LAN.
+  /// CORS. En móvil no hay página, así que se usa la dirección fija de arriba.
   static String get baseUrlPorDefecto =>
       kIsWeb ? Uri.base.origin : defaultBaseUrl;
 
-  String currentBaseUrl = baseUrlPorDefecto;
+  final String currentBaseUrl = baseUrlPorDefecto;
 
   OrchestratorApiClient({required this.secureStorage}) {
     dio = Dio(
@@ -68,22 +70,6 @@ class OrchestratorApiClient {
         },
       ),
     );
-  }
-
-  Future<void> init() async {
-    final savedUrl = await secureStorage.read(key: storageKeyBaseUrl);
-    if (savedUrl != null && savedUrl.isNotEmpty) {
-      updateBaseUrl(savedUrl);
-    }
-  }
-
-  void updateBaseUrl(String newUrl) {
-    final clean = newUrl.endsWith('/')
-        ? newUrl.substring(0, newUrl.length - 1)
-        : newUrl;
-    currentBaseUrl = clean;
-    dio.options.baseUrl = '$clean/api/v1';
-    secureStorage.write(key: storageKeyBaseUrl, value: clean);
   }
 
   Future<void> setAuthToken(String token) async {

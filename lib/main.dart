@@ -26,7 +26,7 @@ class MyApp extends StatelessWidget {
         secureStorage: locator<FlutterSecureStorage>(),
       )..checkAuth(),
       child: MaterialApp(
-        title: 'Moly Control Center',
+        title: 'Ragnar Group',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.darkTheme,
         home: const AuthGate(),

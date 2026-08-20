@@ -16,20 +16,9 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage> {
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
-  final _serverUrlController = TextEditingController();
   bool _obscurePassword = true;
-  bool _showAdvancedServer = false;
   bool _rememberCredentials = true;
   bool _initializedFromVault = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _serverUrlController.text = context
-        .read<AuthCubit>()
-        .state
-        .currentServerUrl;
-  }
 
   void _populateFromVault(AuthState state) {
     if (!_initializedFromVault) {
@@ -59,12 +48,6 @@ class _LoginPageState extends State<LoginPage> {
         ),
       );
       return;
-    }
-
-    if (_showAdvancedServer) {
-      context.read<AuthCubit>().updateServerUrl(
-        _serverUrlController.text.trim(),
-      );
     }
 
     context.read<AuthCubit>().login(
@@ -137,7 +120,7 @@ class _LoginPageState extends State<LoginPage> {
                     const SizedBox(height: 20),
                     Center(
                       child: Text(
-                        'MOLY ORCHESTRATOR',
+                        'RAGNAR GROUP',
                         style: GoogleFonts.outfit(
                           fontSize: 22,
                           fontWeight: FontWeight.bold,
@@ -359,80 +342,6 @@ class _LoginPageState extends State<LoginPage> {
                               ),
                             ],
                           ),
-                          const SizedBox(height: 12),
-
-                          // Advanced Server Toggle
-                          GestureDetector(
-                            onTap: () => setState(
-                              () => _showAdvancedServer = !_showAdvancedServer,
-                            ),
-                            child: Row(
-                              children: [
-                                Icon(
-                                  _showAdvancedServer
-                                      ? Icons.arrow_drop_down_rounded
-                                      : Icons.arrow_right_rounded,
-                                  color: AppTheme.accentBlue,
-                                ),
-                                Text(
-                                  'Servidor Jetson (LAN / Tailscale)',
-                                  style: GoogleFonts.firaCode(
-                                    fontSize: 11,
-                                    color: AppTheme.accentBlue,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-
-                          if (_showAdvancedServer) ...[
-                            const SizedBox(height: 10),
-                            TextField(
-                              controller: _serverUrlController,
-                              style: GoogleFonts.firaCode(
-                                fontSize: 12,
-                                color: Colors.white,
-                              ),
-                              decoration: InputDecoration(
-                                labelText: 'URL del Backend Jetson',
-                                hintText: 'http://192.168.0.109:8000',
-                                filled: true,
-                                fillColor: AppTheme.surfaceLight,
-                                isDense: true,
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                  borderSide: BorderSide.none,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            Row(
-                              children: [
-                                ActionChip(
-                                  label: Text(
-                                    'LAN',
-                                    style: GoogleFonts.firaCode(fontSize: 10),
-                                  ),
-                                  onPressed: () {
-                                    _serverUrlController.text =
-                                        'http://192.168.0.109:8000';
-                                  },
-                                ),
-                                const SizedBox(width: 6),
-                                ActionChip(
-                                  label: Text(
-                                    'Tailscale',
-                                    style: GoogleFonts.firaCode(fontSize: 10),
-                                  ),
-                                  onPressed: () {
-                                    _serverUrlController.text =
-                                        'http://jetson-desktop.tail452840.ts.net:8000';
-                                  },
-                                ),
-                              ],
-                            ),
-                          ],
-
                           const SizedBox(height: 20),
 
                           // Login Button

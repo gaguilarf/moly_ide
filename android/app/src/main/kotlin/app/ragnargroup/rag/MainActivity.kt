@@ -1,4 +1,4 @@
-package com.moly.moly_ide
+package app.ragnargroup.rag
 
 import android.content.Intent
 import androidx.core.content.FileProvider
@@ -12,7 +12,7 @@ class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.moly.moly_ide/utils")
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "app.ragnargroup.rag/utils")
             .setMethodCallHandler { call, result ->
                 when (call.method) {
                     "installApk" -> {

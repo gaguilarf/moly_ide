@@ -87,26 +87,35 @@ app.include_router(explorer.router, prefix=settings.API_V1_STR, dependencies=pro
 app.include_router(system.router, prefix=settings.API_V1_STR, dependencies=protegido)
 
 
-# La app web se sirve desde el propio backend, en /app. Compartir origen con la
-# API evita el CORS entero: el navegador ve la pagina y las llamadas en el mismo
-# host y puerto, asi que CORS_ORIGINS puede seguir vacio.
-#
-# Se monta solo si el directorio existe, para que un backend sin web desplegada
-# arranque igual en vez de reventar al inicio.
-DIRECTORIO_WEB = os.getenv("WEB_DIR", "/home/jetson/moly_web")
-if os.path.isdir(DIRECTORIO_WEB):
-    app.mount(
-        "/app",
-        StaticFiles(directory=DIRECTORIO_WEB, html=True),
-        name="web",
-    )
-
-
-@app.get("/")
-async def root():
+@app.get("/status")
+async def status():
     return {
         "app": settings.APP_NAME,
         "version": settings.APP_VERSION,
         "status": "online",
         "target": "Jetson Orin Nano Orchestrator",
     }
+
+
+# La app web se sirve desde el propio backend, en la raiz. Compartir origen con
+# la API evita el CORS entero: el navegador ve la pagina y las llamadas en el
+# mismo host y puerto, asi que CORS_ORIGINS puede seguir vacio.
+#
+# Va en la raiz (no en /app) porque el `<base href="/">` que genera
+# `flutter build web` por defecto asume que la app vive ahi; montarla en un
+# subpath sin pasarle `--base-href` deja pidiendo sus propios archivos en la
+# raiz del dominio, 404 y pagina en blanco (paso el 2026-08-19). El montaje va
+# al final, despues de los routers de la API: Starlette prueba las rutas en el
+# orden en que se registran, asi que /api/v1/* las atrapan los routers de
+# arriba antes de llegar aqui, y todo lo demas cae en el `html=True` de
+# StaticFiles, que sirve index.html para las rutas propias de Flutter.
+#
+# Se monta solo si el directorio existe, para que un backend sin web desplegada
+# arranque igual en vez de reventar al inicio.
+DIRECTORIO_WEB = os.getenv("WEB_DIR", "/home/jetson/moly_web")
+if os.path.isdir(DIRECTORIO_WEB):
+    app.mount(
+        "/",
+        StaticFiles(directory=DIRECTORIO_WEB, html=True),
+        name="web",
+    )

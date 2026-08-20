@@ -9,9 +9,7 @@ Future<void> initDependencies() async {
   // Secure Storage
   locator.registerLazySingleton<FlutterSecureStorage>(
     () => const FlutterSecureStorage(
-      aOptions: AndroidOptions(
-        encryptedSharedPreferences: true,
-      ),
+      aOptions: AndroidOptions(encryptedSharedPreferences: true),
     ),
   );
 
@@ -23,6 +21,4 @@ Future<void> initDependencies() async {
   locator.registerLazySingleton<WebSocketService>(
     () => WebSocketService(apiClient: locator<OrchestratorApiClient>()),
   );
-
-  await locator<OrchestratorApiClient>().init();
 }
